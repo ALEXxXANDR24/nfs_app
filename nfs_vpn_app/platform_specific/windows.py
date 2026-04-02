@@ -1,0 +1,177 @@
+"""Команды для Windows."""
+
+import subprocess
+import ctypes
+import time
+from nfs_vpn_app.core.logger import Logger
+
+logger = Logger(__name__)
+
+
+class WindowsCommands:
+    """Команды для Windows."""
+
+    # Требуемые компоненты
+    REQUIRED_FEATURES = ["NFS-Client"]
+
+    @staticmethod
+    def check_nfs_client_installed() -> bool:
+        """Проверить установку NFS Client компонента."""
+        try:
+            # Метод 1: Проверить наличие mount.exe в System32
+            import os
+
+            mount_path = os.path.join(
+                os.environ.get("SystemRoot", "C:\\Windows"), "system32", "mount.exe"
+            )
+
+            if os.path.exists(mount_path):
+                logger.info("NFS Client is installed (mount.exe found in System32)")
+                return True
+
+            # Метод 2: Попробуем запустить mount.exe с явным путем
+            try:
+                result = subprocess.run(
+                    [mount_path, "-h"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode == 0:
+                    logger.info("NFS Client is installed (mount.exe works)")
+                    return True
+            except:
+                pass
+
+            # Метод 3: Проверим через PowerShell с точным парсингом
+            try:
+                result = subprocess.run(
+                    [
+                        "powershell",
+                        "-Command",
+                        "(Get-WindowsFeature NFS-Client).Installed",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                if "True" in result.stdout:
+                    logger.info(
+                        "NFS Client is installed (verified via Get-WindowsFeature)"
+                    )
+                    return True
+            except:
+                pass
+
+            logger.warning("NFS Client is not installed")
+            return False
+
+        except Exception as e:
+            logger.warning(f"Failed to check NFS Client: {str(e)}")
+            return False
+
+    @staticmethod
+    def get_available_drives() -> list:
+        """Получить доступные буквы диска."""
+        drives = []
+        try:
+            for letter in range(ord("D"), ord("Z") + 1):  # D-Z
+                drive = chr(letter)
+                try:
+                    drive_type = ctypes.windll.kernel32.GetDriveTypeW(f"{drive}:\\")
+                    if drive_type == 1:  # DRIVE_NO_ROOT_DIR - свободный диск
+                        drives.append(drive)
+                        logger.debug(f"Drive {drive} is available")
+                except:
+                    pass
+        except Exception as e:
+            logger.error(f"Failed to get available drives: {str(e)}")
+
+        logger.info(f"Available drives: {drives}")
+        return drives
+
+    @staticmethod
+    def mount_nfs(server: str, share: str, drive_letter: str) -> tuple:
+        """
+        Смонтировать NFS.
+
+        Returns:
+            (success, message)
+        """
+        command = [
+            "mount.exe",
+            "-o",
+            "anon",
+            f"\\\\{server}\\{share}",
+            f"{drive_letter}:",
+        ]
+
+        logger.info(f"Mounting NFS: {server}{share} -> {drive_letter}:")
+        logger.debug(f"Mount command: {' '.join(command)}")
+
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+
+            if result.returncode == 0:
+                logger.info(f"Successfully mounted NFS on {drive_letter}:")
+                return True, f"Mounted on {drive_letter}:"
+            else:
+                error_msg = (
+                    result.stderr.strip()
+                    if result.stderr
+                    else result.stdout.strip() if result.stdout else "Unknown error"
+                )
+                logger.error(f"Mount failed with code {result.returncode}: {error_msg}")
+                logger.debug(f"stdout: {result.stdout}")
+                logger.debug(f"stderr: {result.stderr}")
+                return False, error_msg
+
+        except subprocess.TimeoutExpired:
+            msg = "Mount command timeout"
+            logger.error(msg)
+            return False, msg
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Mount command failed: {error_msg}")
+            return False, error_msg
+
+    @staticmethod
+    def unmount_nfs(drive_letter: str) -> tuple:
+        """Размонтировать NFS."""
+        command = ["net", "use", f"{drive_letter}:", "/delete", "/yes"]
+
+        logger.info(f"Unmounting NFS from {drive_letter}:")
+
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+
+            if result.returncode == 0:
+                logger.info(f"Successfully unmounted {drive_letter}:")
+                return True, "Unmounted"
+            else:
+                error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+                logger.error(f"Unmount failed: {error_msg}")
+                return False, error_msg
+
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Unmount command failed: {error_msg}")
+            return False, error_msg
+
+    @staticmethod
+    def check_mount(drive_letter: str) -> bool:
+        """Проверить, смонтирован ли диск."""
+        try:
+            import os
+
+            result = os.path.exists(f"{drive_letter}:\\")
+            logger.debug(f"Mount check for {drive_letter}: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to check mount: {str(e)}")
+            return False
+
+    @staticmethod
+    def get_openvpn_command(config_path: str) -> list:
+        """Получить команду для запуска OpenVPN."""
+        return ["openvpn", "--config", config_path]
