@@ -98,15 +98,36 @@ class WindowsCommands:
         Returns:
             (success, message)
         """
+        # Проверить доступность сервера перед монтированием
+        logger.info(f"Checking server availability: {server}")
+        try:
+            result = subprocess.run(
+                ["ping", "-n", "1", "-w", "3000", server],
+                capture_output=True,
+                timeout=5,
+            )
+            if result.returncode != 0:
+                msg = f"Server {server} is not reachable. VPN may not be connected properly."
+                logger.error(msg)
+                return False, msg
+            logger.info(f"Server {server} is reachable")
+        except Exception as e:
+            logger.warning(f"Could not verify server availability: {str(e)}")
+
+        # Проверить синтаксис пути
+        nfs_path = f"\\\\{server}\\{share}"
+        logger.debug(f"NFS path syntax: {nfs_path}")
+
+        # Монтируем через mount.exe
         command = [
             "mount.exe",
             "-o",
-            "anon",
-            f"\\\\{server}\\{share}",
+            "anon,vers=4,port=2049,timeout=60,retry=3,soft",
+            nfs_path,
             f"{drive_letter}:",
         ]
 
-        logger.info(f"Mounting NFS: {server}{share} -> {drive_letter}:")
+        logger.info(f"Mounting NFS: {nfs_path} -> {drive_letter}:")
         logger.debug(f"Mount command: {' '.join(command)}")
 
         try:
@@ -121,7 +142,7 @@ class WindowsCommands:
                     if result.stderr
                     else result.stdout.strip() if result.stdout else "Unknown error"
                 )
-                logger.error(f"Mount failed with code {result.returncode}: {error_msg}")
+                logger.error(f"Mount failed: {error_msg}")
                 logger.debug(f"stdout: {result.stdout}")
                 logger.debug(f"stderr: {result.stderr}")
                 return False, error_msg

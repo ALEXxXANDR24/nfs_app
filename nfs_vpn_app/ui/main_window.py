@@ -402,14 +402,21 @@ class MainWindow(QMainWindow):
                 "color: #FF6B6B; font-size: 14pt; font-weight: bold;"
             )
 
-            QMessageBox.critical(
-                self,
-                "VPN Connection Failed",
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Critical)
+            msg.setWindowTitle("VPN Connection Failed")
+            msg.setText(
                 "Could not establish VPN connection.\nPlease check:\n"
                 "- Internet connection\n"
                 "- OpenVPN is installed\n"
-                "- Try manual connection first",
+                "- Try manual connection first"
             )
+            msg.setStyleSheet(
+                "QMessageBox { background-color: #2a2a2a; } "
+                "QMessageBox QLabel { color: #000000; } "
+                "QPushButton { color: #000000; background-color: #4db8ff; border: none; padding: 5px; }"
+            )
+            msg.exec_()
 
             self.connect_button.setEnabled(True)
             self.progress_bar.setVisible(False)
@@ -440,7 +447,16 @@ class MainWindow(QMainWindow):
             error_msg += "- Mount point is available\n"
             error_msg += "- Check logs for details"
 
-            QMessageBox.critical(self, "NFS Mount Failed", error_msg)
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Critical)
+            msg.setWindowTitle("NFS Mount Failed")
+            msg.setText(error_msg)
+            msg.setStyleSheet(
+                "QMessageBox { background-color: #2a2a2a; } "
+                "QMessageBox QLabel { color: #000000; } "
+                "QPushButton { color: #000000; background-color: #4db8ff; border: none; padding: 5px; }"
+            )
+            msg.exec_()
 
             # Отключиться от VPN если монтирование не удалось
             self.log("Disconnecting VPN due to mount failure...")
@@ -579,12 +595,19 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         """Обработчик закрытия окна."""
         if self.disconnect_button.isEnabled():
-            reply = QMessageBox.question(
-                self,
-                "Confirm Exit",
-                "NFS is still mounted. Do you want to disconnect before exiting?",
-                QMessageBox.Yes | QMessageBox.No,
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Question)
+            msg.setWindowTitle("Confirm Exit")
+            msg.setText(
+                "NFS is still mounted. Do you want to disconnect before exiting?"
             )
+            msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg.setStyleSheet(
+                "QMessageBox { background-color: #aaaaaa; } "
+                "QMessageBox QLabel { color: #000000; } "
+                "QPushButton { color: #000000; background-color: #4db8ff; border: none; padding: 5px; }"
+            )
+            reply = msg.exec_()
 
             if reply == QMessageBox.Yes:
                 self.on_disconnect_clicked()
