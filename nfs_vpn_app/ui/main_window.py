@@ -412,7 +412,7 @@ class MainWindow(QMainWindow):
                 "- Try manual connection first"
             )
             msg.setStyleSheet(
-                "QMessageBox { background-color: #2a2a2a; } "
+                "QMessageBox { background-color: #aaaaaa; } "
                 "QMessageBox QLabel { color: #000000; } "
                 "QPushButton { color: #000000; background-color: #4db8ff; border: none; padding: 5px; }"
             )
@@ -452,7 +452,7 @@ class MainWindow(QMainWindow):
             msg.setWindowTitle("NFS Mount Failed")
             msg.setText(error_msg)
             msg.setStyleSheet(
-                "QMessageBox { background-color: #2a2a2a; } "
+                "QMessageBox { background-color: #aaaaaa; } "
                 "QMessageBox QLabel { color: #000000; } "
                 "QPushButton { color: #000000; background-color: #4db8ff; border: none; padding: 5px; }"
             )
