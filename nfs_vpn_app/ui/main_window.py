@@ -28,10 +28,10 @@ logger = Logger(__name__)
 class MainWindow(QMainWindow):
     """Главное окно приложения."""
 
-    def __init__(self):
+    def __init__(self, vpn_manager=None):
         super().__init__()
 
-        self.vpn_manager = VPNManager()
+        self.vpn_manager = vpn_manager if vpn_manager else VPNManager()
         self.nfs_manager = NFSManager()
         self.platform = platform.system().lower()
 
@@ -46,8 +46,8 @@ class MainWindow(QMainWindow):
 
     def init_ui(self):
         """Инициализировать UI."""
-        self.setWindowTitle("NFS VPN Connect - Network File System VPN Manager")
-        self.setGeometry(100, 100, 1000, 750)
+        self.setWindowTitle("NFS Connect - Network File System Manager")
+        self.setGeometry(100, 100, 1000, 400)
 
         # Темный стиль
         self.setStyleSheet(
@@ -154,7 +154,7 @@ class MainWindow(QMainWindow):
 
         # Заголовок
         header_layout = QHBoxLayout()
-        title_label = QLabel("NFS VPN Connection Manager")
+        title_label = QLabel("NFS Connection Manager")
         title_font = title_label.font()
         title_font.setPointSize(18)
         title_font.setBold(True)
@@ -163,14 +163,6 @@ class MainWindow(QMainWindow):
         header_layout.addWidget(title_label)
         header_layout.addStretch()
         main_layout.addLayout(header_layout)
-
-        # Информационное сообщение
-        info_label = QLabel("Connect to VPN and mount NFS file system automatically")
-        info_font = info_label.font()
-        info_font.setPointSize(11)
-        info_label.setFont(info_font)
-        info_label.setStyleSheet("color: #b0b0b0; padding: 5px 10px;")
-        main_layout.addWidget(info_label)
 
         # Главный контейнер с двух-колончным макетом
         content_layout = QHBoxLayout()
@@ -374,7 +366,7 @@ class MainWindow(QMainWindow):
     def on_connect_clicked(self):
         """Обработчик клика кнопки Connect."""
         self.log("=" * 60)
-        self.log("Starting connection process...")
+        self.log("Starting NFS mount process...")
 
         mount_point = self.mount_point_selector.currentData()
         if not mount_point:
@@ -388,42 +380,11 @@ class MainWindow(QMainWindow):
         self.progress_bar.setVisible(True)
         self.progress_bar.setMaximum(0)  # Indefinite progress
 
-        self.log("Connecting to VPN...")
-        self.general_status_label.setText("Connecting...")
+        self.log("VPN is already connected (from login)")
+        self.general_status_label.setText("Mounting NFS...")
         self.general_status_label.setStyleSheet(
             "color: #FFB74D; font-size: 14pt; font-weight: bold;"
         )
-
-        # Подключение к VPN
-        if not self.vpn_manager.connect():
-            self.log("ERROR: Failed to connect to VPN")
-            self.general_status_label.setText("VPN Connection Failed")
-            self.general_status_label.setStyleSheet(
-                "color: #FF6B6B; font-size: 14pt; font-weight: bold;"
-            )
-
-            msg = QMessageBox(self)
-            msg.setIcon(QMessageBox.Critical)
-            msg.setWindowTitle("VPN Connection Failed")
-            msg.setText(
-                "Could not establish VPN connection.\nPlease check:\n"
-                "- Internet connection\n"
-                "- OpenVPN is installed\n"
-                "- Try manual connection first"
-            )
-            msg.setStyleSheet(
-                "QMessageBox { background-color: #aaaaaa; } "
-                "QMessageBox QLabel { color: #000000; } "
-                "QPushButton { color: #000000; background-color: #4db8ff; border: none; padding: 5px; }"
-            )
-            msg.exec_()
-
-            self.connect_button.setEnabled(True)
-            self.progress_bar.setVisible(False)
-            self.log("Connection aborted")
-            return
-
-        self.log("VPN connected successfully")
 
         # Монтирование NFS
         self.log(f"Mounting NFS to {mount_point}...")

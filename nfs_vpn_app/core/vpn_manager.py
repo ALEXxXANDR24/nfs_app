@@ -100,7 +100,7 @@ class VPNManager:
 
                     # Ждем инициализации адаптера
                     logger.info("Waiting for VPN adapter initialization...")
-                    wait_time = 5  # 5 секунд минимум
+                    wait_time = 2
                     for i in range(wait_time):
                         time.sleep(1)
                         if not self._check_vpn_connection():
