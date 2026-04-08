@@ -11,6 +11,78 @@ class MacOSCommands:
     """Команды для macOS."""
 
     @staticmethod
+    def check_nfs_tools_installed() -> bool:
+        """Проверить установку NFS tools."""
+        try:
+            # macOS включает встроенную поддержку NFS через mount_nfs
+            # Проверим наличие команды mount_nfs
+            result = subprocess.run(
+                ["which", "mount_nfs"], capture_output=True, text=True, timeout=5
+            )
+            is_installed = result.returncode == 0
+            if is_installed:
+                logger.info("mount_nfs is available")
+            else:
+                logger.warning("mount_nfs not found")
+            return is_installed
+        except Exception as e:
+            logger.warning(f"Failed to check mount_nfs: {str(e)}")
+            return False
+
+    @staticmethod
+    def ensure_nfs_tools_installed() -> tuple:
+        """
+        Проверить и установить NFS tools если необходимо.
+
+        Returns:
+            (success, message)
+        """
+        # Проверить установлены ли уже
+        if MacOSCommands.check_nfs_tools_installed():
+            logger.info("NFS tools are already installed")
+            return True, "NFS tools are already installed"
+
+        logger.info("Attempting to install NFS tools via brew...")
+
+        try:
+            # Проверим установлен ли brew
+            result = subprocess.run(
+                ["which", "brew"], capture_output=True, text=True, timeout=5
+            )
+            if result.returncode != 0:
+                msg = "Homebrew is not installed. Please install Homebrew first from https://brew.sh"
+                logger.error(msg)
+                return False, msg
+
+            # Устанавливаем nfs-utils через brew
+            command = ["brew", "install", "nfs-utils"]
+            logger.debug(f"Running command: {' '.join(command)}")
+            result = subprocess.run(
+                command, capture_output=True, text=True, timeout=120
+            )
+
+            if result.returncode == 0:
+                logger.info("NFS tools installed successfully")
+                return True, "NFS tools installed successfully"
+            else:
+                error_msg = (
+                    result.stderr.strip()
+                    if result.stderr
+                    else result.stdout.strip() if result.stdout else "Unknown error"
+                )
+                logger.error(f"Installation failed: {error_msg}")
+                return False, f"Installation failed: {error_msg}"
+
+        except subprocess.TimeoutExpired:
+            msg = "Installation timeout"
+            logger.error(msg)
+            return False, msg
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Installation error: {error_msg}")
+            return False, f"Installation error: {error_msg}"
+
+    @staticmethod
     def mount_nfs(server: str, share: str, mount_point: str) -> tuple:
         """Смонтировать NFS."""
         # Убедиться, что директория существует

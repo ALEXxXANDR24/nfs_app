@@ -140,11 +140,22 @@ class NFSManager:
         from nfs_vpn_app.platform_specific.windows import WindowsCommands
 
         try:
-            # Проверить установку NFS Client
+            # Проверить и установить NFS Client если необходимо
             if not WindowsCommands.check_nfs_client_installed():
-                msg = "NFS Client component is not installed. Please install it using: Add-WindowsFeature -Name NFS-Client"
-                logger.error(msg)
-                return False, msg
+                logger.info("NFS Client not installed, attempting to install...")
+                self._emit_status("Installing NFS Client component...", "info")
+
+                success, message = WindowsCommands.ensure_nfs_client_installed()
+                if not success:
+                    logger.error(f"Failed to install NFS Client: {message}")
+                    return False, message
+
+                logger.info(f"NFS Client installation result: {message}")
+                self._emit_status(f"NFS Client: {message}", "info")
+
+                # Если требуется перезагрузка
+                if "restart" in message.lower() or "reboot" in message.lower():
+                    return False, f"{message} Please restart and try again."
 
             # Выполнить монтирование
             success, message = WindowsCommands.mount_nfs(
@@ -170,11 +181,18 @@ class NFSManager:
         from nfs_vpn_app.platform_specific.linux import LinuxCommands
 
         try:
-            # Проверить установку NFS Common
+            # Проверить и установить NFS Common если необходимо
             if not LinuxCommands.check_nfs_common_installed():
-                msg = "nfs-common package is not installed. Please install it using: sudo apt install nfs-common"
-                logger.error(msg)
-                return False, msg
+                logger.info("nfs-common not installed, attempting to install...")
+                self._emit_status("Installing nfs-common package...", "info")
+
+                success, message = LinuxCommands.ensure_nfs_common_installed()
+                if not success:
+                    logger.error(f"Failed to install nfs-common: {message}")
+                    return False, message
+
+                logger.info(f"nfs-common installation result: {message}")
+                self._emit_status(f"nfs-common: {message}", "info")
 
             # Выполнить монтирование
             success, message = LinuxCommands.mount_nfs(
@@ -200,6 +218,19 @@ class NFSManager:
         from nfs_vpn_app.platform_specific.macos import MacOSCommands
 
         try:
+            # Проверить и установить NFS tools если необходимо
+            if not MacOSCommands.check_nfs_tools_installed():
+                logger.info("NFS tools not installed, attempting to install...")
+                self._emit_status("Installing NFS tools via Homebrew...", "info")
+
+                success, message = MacOSCommands.ensure_nfs_tools_installed()
+                if not success:
+                    logger.error(f"Failed to install NFS tools: {message}")
+                    return False, message
+
+                logger.info(f"NFS tools installation result: {message}")
+                self._emit_status(f"NFS tools: {message}", "info")
+
             # Выполнить монтирование
             success, message = MacOSCommands.mount_nfs(
                 self.nfs_server, self.nfs_path, self.mount_point

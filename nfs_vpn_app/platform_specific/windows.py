@@ -71,6 +71,75 @@ class WindowsCommands:
             return False
 
     @staticmethod
+    def ensure_nfs_client_installed() -> tuple:
+        """
+        Проверить и установить NFS Client если необходимо.
+
+        Returns:
+            (success, message)
+        """
+        # Проверить установлен ли уже
+        if WindowsCommands.check_nfs_client_installed():
+            logger.info("NFS Client is already installed")
+            return True, "NFS Client is already installed"
+
+        logger.info("Attempting to install NFS Client...")
+
+        try:
+            # Используем PowerShell для установки с правами администратора
+            # Install-WindowsFeature требует admin, выполняем через powershell
+            command = [
+                "powershell",
+                "-Command",
+                "Add-WindowsFeature -Name NFS-Client",
+            ]
+
+            logger.debug(f"Running install command: {' '.join(command)}")
+            result = subprocess.run(
+                command, capture_output=True, text=True, timeout=120
+            )
+
+            if result.returncode == 0:
+                logger.info("NFS Client installed successfully")
+                # Проверяем еще раз
+                if WindowsCommands.check_nfs_client_installed():
+                    return (
+                        True,
+                        "NFS Client installed successfully. May require restart.",
+                    )
+                else:
+                    return (
+                        True,
+                        "NFS Client installation completed. Please restart your computer.",
+                    )
+            else:
+                error_msg = (
+                    result.stderr.strip()
+                    if result.stderr
+                    else result.stdout.strip() if result.stdout else "Unknown error"
+                )
+                logger.error(f"Installation failed: {error_msg}")
+
+                # Если недостаточно прав, предлагаем руководство
+                if "Access Denied" in error_msg or "denied" in error_msg.lower():
+                    msg = (
+                        "NFS Client installation requires administrator privileges.\n"
+                        "Please run this application as administrator."
+                    )
+                    return False, msg
+                else:
+                    return False, f"Installation failed: {error_msg}"
+
+        except subprocess.TimeoutExpired:
+            msg = "NFS Client installation timeout"
+            logger.error(msg)
+            return False, msg
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Installation error: {error_msg}")
+            return False, f"Installation error: {error_msg}"
+
+    @staticmethod
     def get_available_drives() -> list:
         """Получить доступные буквы диска."""
         drives = []

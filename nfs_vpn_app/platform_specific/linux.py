@@ -31,6 +31,55 @@ class LinuxCommands:
             return False
 
     @staticmethod
+    def ensure_nfs_common_installed() -> tuple:
+        """
+        Проверить и установить NFS Common если необходимо.
+
+        Returns:
+            (success, message)
+        """
+        # Проверить установлен ли уже
+        if LinuxCommands.check_nfs_common_installed():
+            logger.info("nfs-common is already installed")
+            return True, "nfs-common is already installed"
+
+        logger.info("Attempting to install nfs-common...")
+
+        try:
+            # Обновляем репозитории и устанавливаем nfs-common
+            commands = [
+                ["sudo", "apt", "update"],
+                ["sudo", "apt", "install", "-y", "nfs-common"],
+            ]
+
+            for command in commands:
+                logger.debug(f"Running command: {' '.join(command)}")
+                result = subprocess.run(
+                    command, capture_output=True, text=True, timeout=120
+                )
+
+                if result.returncode != 0:
+                    error_msg = (
+                        result.stderr.strip()
+                        if result.stderr
+                        else result.stdout.strip() if result.stdout else "Unknown error"
+                    )
+                    logger.error(f"Command failed: {' '.join(command)} - {error_msg}")
+                    return False, f"Installation failed: {error_msg}"
+
+            logger.info("nfs-common installed successfully")
+            return True, "nfs-common installed successfully"
+
+        except subprocess.TimeoutExpired:
+            msg = "Installation timeout"
+            logger.error(msg)
+            return False, msg
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Installation error: {error_msg}")
+            return False, f"Installation error: {error_msg}"
+
+    @staticmethod
     def mount_nfs(server: str, share: str, mount_point: str) -> tuple:
         """Смонтировать NFS."""
         # Убедиться, что директория существует
