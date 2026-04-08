@@ -5,9 +5,17 @@ import threading
 from typing import Tuple, Callable, Optional
 import platform
 import time
+import os
 from nfs_vpn_app.core.logger import Logger
 
 logger = Logger(__name__)
+
+
+# Флаг для скрытия окна консоли на Windows
+if platform.system() == "Windows":
+    CREATE_NO_WINDOW = 0x08000000
+else:
+    CREATE_NO_WINDOW = 0
 
 
 class ProcessRunner:
@@ -41,9 +49,17 @@ class ProcessRunner:
 
             logger.debug(f"Running command: {' '.join(command)}")
 
-            result = subprocess.run(
-                command, capture_output=True, text=True, timeout=timeout, shell=shell
-            )
+            # Добавляем флаг для скрытия окна консоли на Windows
+            kwargs = {
+                "capture_output": True,
+                "text": True,
+                "timeout": timeout,
+                "shell": shell,
+            }
+            if CREATE_NO_WINDOW:
+                kwargs["creationflags"] = CREATE_NO_WINDOW
+
+            result = subprocess.run(command, **kwargs)
 
             success = result.returncode == 0
             if success:
@@ -116,9 +132,16 @@ class ProcessRunner:
 
             logger.debug(f"Starting long-running process: {' '.join(command)}")
 
-            process = subprocess.Popen(
-                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
+            # Добавляем флаг для скрытия окна консоли на Windows
+            kwargs = {
+                "stdout": subprocess.PIPE,
+                "stderr": subprocess.PIPE,
+                "text": True,
+            }
+            if CREATE_NO_WINDOW:
+                kwargs["creationflags"] = CREATE_NO_WINDOW
+
+            process = subprocess.Popen(command, **kwargs)
 
             return process
 

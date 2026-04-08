@@ -1,6 +1,7 @@
 """Управление конфигурацией приложения."""
 
 import os
+import sys
 import json
 import platform
 from pathlib import Path
@@ -91,25 +92,60 @@ class ConfigManager:
     def get_vpn_config(self) -> str:
         """Получить встроенный VPN конфиг из приложения."""
         try:
-            # VPN конфиг может быть встроен как ресурс
-            vpn_config_path = os.path.join(
-                os.path.dirname(__file__), "..", "resources", "vpn_config.ovpn"
-            )
+            # Определить директорию для поиска ресурсов
+            # Когда запущено из .exe, __file__ указывает на временную папку PyInstaller
 
-            # Нормализировать путь
-            vpn_config_path = os.path.abspath(vpn_config_path)
+            # Способ 1: Относительно текущего файла (основной путь)
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            vpn_config_path = os.path.join(base_dir, "resources", "vpn_config.ovpn")
 
             if os.path.exists(vpn_config_path):
+                logger.info(f"VPN config found at: {vpn_config_path}")
                 with open(vpn_config_path, "r", encoding="utf-8") as f:
                     config_content = f.read()
                 logger.info("VPN config loaded from resources")
                 return config_content
-            else:
-                logger.error(f"VPN config not found at {vpn_config_path}")
-                return None
+
+            # Способ 2: Может быть в корне (если PyInstaller bundled неправильно)
+            logger.debug(f"Trying alternative paths for VPN config...")
+            alternative_paths = [
+                os.path.join(base_dir, "resources", "vpn_config.ovpn"),
+                os.path.join(os.path.dirname(base_dir), "resources", "vpn_config.ovpn"),
+            ]
+
+            for alt_path in alternative_paths:
+                alt_path = os.path.abspath(alt_path)
+                logger.debug(f"Checking: {alt_path}")
+                if os.path.exists(alt_path):
+                    logger.info(f"VPN config found at alternative path: {alt_path}")
+                    with open(alt_path, "r", encoding="utf-8") as f:
+                        config_content = f.read()
+                    return config_content
+
+            # Способ 3: Поискать в sys.path [для .exe]
+            for path in sys.path:
+                vpn_path = os.path.join(path, "resources", "vpn_config.ovpn")
+                vpn_path = os.path.abspath(vpn_path)
+                logger.debug(f"Checking in sys.path: {vpn_path}")
+                if os.path.exists(vpn_path):
+                    logger.info(f"VPN config found in sys.path: {vpn_path}")
+                    with open(vpn_path, "r", encoding="utf-8") as f:
+                        config_content = f.read()
+                    return config_content
+
+            # Если ничего не найдено, выведем информацию для отладки
+            logger.error(f"VPN config not found")
+            logger.error(f"Base dir: {base_dir}")
+            logger.error(f"sys.path: {sys.path}")
+            logger.error(f"Current __file__: {__file__}")
+
+            return None
 
         except Exception as e:
             logger.error(f"Failed to get VPN config: {str(e)}")
+            import traceback
+
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
 
     def get_setting(self, key: str, default=None):

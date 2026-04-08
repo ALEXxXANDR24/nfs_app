@@ -2,9 +2,16 @@
 
 import subprocess
 import os
+import platform
 from nfs_vpn_app.core.logger import Logger
 
 logger = Logger(__name__)
+
+# Флаг для скрытия окна консоли (не используется на macOS, но для консистентности)
+if platform.system() == "Windows":
+    CREATE_NO_WINDOW = 0x08000000
+else:
+    CREATE_NO_WINDOW = 0
 
 
 class MacOSCommands:
@@ -17,7 +24,11 @@ class MacOSCommands:
             # macOS включает встроенную поддержку NFS через mount_nfs
             # Проверим наличие команды mount_nfs
             result = subprocess.run(
-                ["which", "mount_nfs"], capture_output=True, text=True, timeout=5
+                ["which", "mount_nfs"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                creationflags=CREATE_NO_WINDOW,
             )
             is_installed = result.returncode == 0
             if is_installed:
@@ -47,7 +58,11 @@ class MacOSCommands:
         try:
             # Проверим установлен ли brew
             result = subprocess.run(
-                ["which", "brew"], capture_output=True, text=True, timeout=5
+                ["which", "brew"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                creationflags=CREATE_NO_WINDOW,
             )
             if result.returncode != 0:
                 msg = "Homebrew is not installed. Please install Homebrew first from https://brew.sh"
@@ -58,7 +73,11 @@ class MacOSCommands:
             command = ["brew", "install", "nfs-utils"]
             logger.debug(f"Running command: {' '.join(command)}")
             result = subprocess.run(
-                command, capture_output=True, text=True, timeout=120
+                command,
+                capture_output=True,
+                text=True,
+                timeout=120,
+                creationflags=CREATE_NO_WINDOW,
             )
 
             if result.returncode == 0:
@@ -93,6 +112,7 @@ class MacOSCommands:
                     capture_output=True,
                     text=True,
                     timeout=10,
+                    creationflags=CREATE_NO_WINDOW,
                 )
                 if result.returncode == 0:
                     logger.info(f"Created mount point: {mount_point}")
@@ -114,7 +134,11 @@ class MacOSCommands:
 
         try:
             result = subprocess.run(
-                ["sudo"] + command, capture_output=True, text=True, timeout=30
+                ["sudo"] + command,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                creationflags=CREATE_NO_WINDOW,
             )
 
             if result.returncode == 0:
@@ -142,7 +166,13 @@ class MacOSCommands:
         logger.info(f"Unmounting NFS from {mount_point}")
 
         try:
-            result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                creationflags=CREATE_NO_WINDOW,
+            )
 
             if result.returncode == 0:
                 logger.info(f"Successfully unmounted {mount_point}")
@@ -162,7 +192,11 @@ class MacOSCommands:
         """Проверить, смонтирована ли ФС."""
         try:
             result = subprocess.run(
-                ["mount"], capture_output=True, text=True, timeout=5
+                ["mount"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                creationflags=CREATE_NO_WINDOW,
             )
             is_mounted = mount_point in result.stdout
             logger.debug(f"Mount check for {mount_point}: {is_mounted}")

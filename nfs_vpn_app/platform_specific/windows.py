@@ -3,9 +3,14 @@
 import subprocess
 import ctypes
 import time
+import platform
+import os
 from nfs_vpn_app.core.logger import Logger
 
 logger = Logger(__name__)
+
+# Флаг для скрытия окна консоли
+CREATE_NO_WINDOW = 0x08000000
 
 
 class WindowsCommands:
@@ -36,6 +41,7 @@ class WindowsCommands:
                     capture_output=True,
                     text=True,
                     timeout=5,
+                    creationflags=CREATE_NO_WINDOW,
                 )
                 if result.returncode == 0:
                     logger.info("NFS Client is installed (mount.exe works)")
@@ -54,6 +60,7 @@ class WindowsCommands:
                     capture_output=True,
                     text=True,
                     timeout=10,
+                    creationflags=CREATE_NO_WINDOW,
                 )
                 if "True" in result.stdout:
                     logger.info(
@@ -96,7 +103,11 @@ class WindowsCommands:
 
             logger.debug(f"Running install command: {' '.join(command)}")
             result = subprocess.run(
-                command, capture_output=True, text=True, timeout=120
+                command,
+                capture_output=True,
+                text=True,
+                timeout=120,
+                creationflags=CREATE_NO_WINDOW,
             )
 
             if result.returncode == 0:
@@ -174,6 +185,7 @@ class WindowsCommands:
                 ["ping", "-n", "1", "-w", "3000", server],
                 capture_output=True,
                 timeout=5,
+                creationflags=CREATE_NO_WINDOW,
             )
             if result.returncode != 0:
                 msg = f"Server {server} is not reachable. VPN may not be connected properly."
@@ -200,7 +212,13 @@ class WindowsCommands:
         logger.debug(f"Mount command: {' '.join(command)}")
 
         try:
-            result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                creationflags=CREATE_NO_WINDOW,
+            )
 
             if result.returncode == 0:
                 logger.info(f"Successfully mounted NFS on {drive_letter}:")
@@ -233,7 +251,13 @@ class WindowsCommands:
         logger.info(f"Unmounting NFS from {drive_letter}:")
 
         try:
-            result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                creationflags=CREATE_NO_WINDOW,
+            )
 
             if result.returncode == 0:
                 logger.info(f"Successfully unmounted {drive_letter}:")

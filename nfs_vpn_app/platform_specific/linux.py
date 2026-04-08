@@ -2,9 +2,16 @@
 
 import subprocess
 import os
+import platform
 from nfs_vpn_app.core.logger import Logger
 
 logger = Logger(__name__)
+
+# Флаг для скрытия окна консоли (не используется на Linux, но для консистентности)
+if platform.system() == "Windows":
+    CREATE_NO_WINDOW = 0x08000000
+else:
+    CREATE_NO_WINDOW = 0
 
 
 class LinuxCommands:
@@ -18,7 +25,11 @@ class LinuxCommands:
         """Проверить установку NFS Common."""
         try:
             result = subprocess.run(
-                ["dpkg", "-l", "nfs-common"], capture_output=True, text=True, timeout=10
+                ["dpkg", "-l", "nfs-common"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                creationflags=CREATE_NO_WINDOW,
             )
             is_installed = result.returncode == 0
             if is_installed:
@@ -55,7 +66,11 @@ class LinuxCommands:
             for command in commands:
                 logger.debug(f"Running command: {' '.join(command)}")
                 result = subprocess.run(
-                    command, capture_output=True, text=True, timeout=120
+                    command,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    creationflags=CREATE_NO_WINDOW,
                 )
 
                 if result.returncode != 0:
@@ -90,6 +105,7 @@ class LinuxCommands:
                     capture_output=True,
                     text=True,
                     timeout=10,
+                    creationflags=CREATE_NO_WINDOW,
                 )
                 if result.returncode == 0:
                     logger.info(f"Created mount point: {mount_point}")
@@ -113,7 +129,11 @@ class LinuxCommands:
 
         try:
             result = subprocess.run(
-                ["sudo"] + command, capture_output=True, text=True, timeout=30
+                ["sudo"] + command,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                creationflags=CREATE_NO_WINDOW,
             )
 
             if result.returncode == 0:
@@ -142,7 +162,11 @@ class LinuxCommands:
 
         try:
             result = subprocess.run(
-                ["sudo"] + command, capture_output=True, text=True, timeout=30
+                ["sudo"] + command,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                creationflags=CREATE_NO_WINDOW,
             )
 
             if result.returncode == 0:
@@ -163,7 +187,11 @@ class LinuxCommands:
         """Проверить, смонтирована ли ФС."""
         try:
             result = subprocess.run(
-                ["mountpoint", mount_point], capture_output=True, text=True, timeout=5
+                ["mountpoint", mount_point],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                creationflags=CREATE_NO_WINDOW,
             )
             is_mounted = result.returncode == 0
             logger.debug(f"Mount check for {mount_point}: {is_mounted}")

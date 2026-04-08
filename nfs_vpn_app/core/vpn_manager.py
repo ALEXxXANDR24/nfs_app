@@ -298,8 +298,9 @@ class VPNManager:
             return None
 
         import shutil
+        import glob
 
-        # Пытаемся найти в стандартных местах
+        # Пытаемся найти в стандартных местах (сначала обычная инсталляция)
         possible_paths = [
             "C:\\Program Files\\OpenVPN\\bin\\openvpn.exe",
             "C:\\Program Files (x86)\\OpenVPN\\bin\\openvpn.exe",
@@ -308,15 +309,58 @@ class VPNManager:
 
         # Сначала проверим стандартные места
         for path in possible_paths:
-            if os.path.exists(path):
-                logger.info(f"Found OpenVPN at: {path}")
-                return path
+            try:
+                if os.path.exists(path):
+                    logger.info(f"Found OpenVPN at: {path}")
+                    return path
+            except Exception as e:
+                logger.debug(f"Failed to check path {path}: {str(e)}")
 
-        # Потом попытаемся найти через which (если PATH настроена правильно)
-        result = shutil.which("openvpn")
-        if result:
-            logger.info(f"Found OpenVPN via PATH: {result}")
-            return result
+        # Попробуем найти через which (если PATH настроена правильно)
+        try:
+            result = shutil.which("openvpn")
+            if result:
+                logger.info(f"Found OpenVPN via PATH: {result}")
+                return result
+        except Exception as e:
+            logger.debug(f"shutil.which failed: {str(e)}")
 
-        logger.warning("OpenVPN not found in standard locations")
+        # Попытаемся поискать в Program Files используя glob
+        try:
+            programs_dir = os.environ.get("ProgramFiles", "C:\\Program Files")
+            pattern = os.path.join(programs_dir, "*OpenVPN*", "bin", "openvpn.exe")
+            matches = glob.glob(pattern, recursive=False)
+            if matches:
+                logger.info(f"Found OpenVPN via glob: {matches[0]}")
+                return matches[0]
+        except Exception as e:
+            logger.debug(f"Glob search failed: {str(e)}")
+
+        # Попытаемся поискать в Program Files (x86)
+        try:
+            programs_dir_x86 = os.environ.get(
+                "ProgramFiles(x86)", "C:\\Program Files (x86)"
+            )
+            pattern = os.path.join(programs_dir_x86, "*OpenVPN*", "bin", "openvpn.exe")
+            matches = glob.glob(pattern, recursive=False)
+            if matches:
+                logger.info(f"Found OpenVPN via glob (x86): {matches[0]}")
+                return matches[0]
+        except Exception as e:
+            logger.debug(f"Glob search (x86) failed: {str(e)}")
+
+        # Попробуем запустить openvpn напрямую из PATH
+        try:
+            result = subprocess.run(
+                ["openvpn", "--version"],
+                capture_output=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                logger.info("OpenVPN found via direct command execution")
+                return "openvpn"
+        except Exception as e:
+            logger.debug(f"Direct execution test failed: {str(e)}")
+
+        logger.error("OpenVPN not found in system")
         return None
