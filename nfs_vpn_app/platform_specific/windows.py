@@ -98,7 +98,7 @@ class WindowsCommands:
             command = [
                 "powershell",
                 "-Command",
-                "Add-WindowsFeature -Name NFS-Client",
+                "Enable-WindowsOptionalFeature -FeatureName ServicesForNFS-ClientOnly, ClientForNFS-Infrastructure -Online -NoRestart",
             ]
 
             logger.debug(f"Running install command: {' '.join(command)}")

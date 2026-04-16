@@ -6,6 +6,12 @@ import time
 import threading
 import tempfile
 import os
+
+# Флаг для скрытия окна консоли на Windows
+if platform.system() == "Windows":
+    CREATE_NO_WINDOW = 0x08000000
+else:
+    CREATE_NO_WINDOW = 0
 from typing import Callable, Optional
 from nfs_vpn_app.core.logger import Logger
 from nfs_vpn_app.core.config_manager import ConfigManager
@@ -190,7 +196,12 @@ class VPNManager:
             else:
                 command = ["ping", "-c", "1", "-W", "2", "172.18.130.50"]
 
-            result = subprocess.run(command, capture_output=True, timeout=5)
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                timeout=5,
+                creationflags=CREATE_NO_WINDOW,
+            )
 
             if result.returncode == 0:
                 logger.debug("VPN ping successful")
@@ -204,7 +215,11 @@ class VPNManager:
             if self.platform == "windows":
                 # На Windows используем ipconfig
                 result = subprocess.run(
-                    ["ipconfig"], capture_output=True, text=True, timeout=5
+                    ["ipconfig"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    creationflags=CREATE_NO_WINDOW,
                 )
                 # Ищем VPN адапт или TUN адапт
                 if (
@@ -222,7 +237,12 @@ class VPNManager:
                     else "netstat -rn | grep tun"
                 )
                 result = subprocess.run(
-                    cmd, capture_output=True, text=True, timeout=5, shell=True
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    shell=True,
+                    creationflags=CREATE_NO_WINDOW,
                 )
                 if result.returncode == 0:
                     logger.debug("Found VPN route")
@@ -355,6 +375,7 @@ class VPNManager:
                 ["openvpn", "--version"],
                 capture_output=True,
                 timeout=5,
+                creationflags=CREATE_NO_WINDOW,
             )
             if result.returncode == 0:
                 logger.info("OpenVPN found via direct command execution")

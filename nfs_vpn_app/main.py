@@ -3,8 +3,15 @@
 
 import sys
 import platform
+import subprocess
 from PyQt5.QtWidgets import QApplication, QMessageBox, QProgressDialog
 from PyQt5.QtCore import Qt
+
+# Флаг для скрытия окна консоли на Windows
+if platform.system() == "Windows":
+    CREATE_NO_WINDOW = 0x08000000
+else:
+    CREATE_NO_WINDOW = 0
 from nfs_vpn_app.ui.main_window import MainWindow
 from nfs_vpn_app.ui.login_dialog import LoginDialog
 from nfs_vpn_app.core.logger import Logger
@@ -21,11 +28,12 @@ def check_requirements():
     logger.info(f"System: {system}")
 
     # Проверить OpenVPN
-    import subprocess
-
     try:
         result = subprocess.run(
-            ["openvpn", "--version"], capture_output=True, timeout=5
+            ["openvpn", "--version"],
+            capture_output=True,
+            timeout=5,
+            creationflags=CREATE_NO_WINDOW,
         )
         if result.returncode != 0:
             logger.warning("OpenVPN might not be installed")
