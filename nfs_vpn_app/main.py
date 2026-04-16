@@ -28,42 +28,19 @@ def check_requirements():
     system = platform.system()
     logger.info(f"System: {system}")
 
-    # Проверить NFS Client для Windows
+    # # Проверить NFS Client для Windows
     if system == "Windows":
         logger.info("Checking NFS Client for Windows...")
         if not WindowsCommands.check_nfs_client_installed():
             logger.warning("NFS Client not found, attempting to install...")
-            QMessageBox.information(
-                None,
-                "NFS Client Required",
-                "NFS Client component is not installed.\n\n"
-                "The application will now attempt to install it.\n"
-                "You may need to provide administrator credentials.",
-            )
 
             success, message = WindowsCommands.ensure_nfs_client_installed()
 
             if not success:
                 logger.error(f"NFS Client installation failed: {message}")
-                QMessageBox.critical(
-                    None,
-                    "NFS Client Installation Failed",
-                    f"Could not install NFS Client:\n\n{message}\n\n"
-                    "Please install it manually:\n"
-                    "1. Open Control Panel\n"
-                    "2. Go to Programs > Turn Windows features on or off\n"
-                    "3. Find 'Services for NFS' and 'Client for NFS'\n"
-                    "4. Check both options and click OK\n"
-                    "5. Restart your computer if prompted",
-                )
                 return False
             else:
                 logger.info(f"NFS Client installation: {message}")
-                QMessageBox.information(
-                    None,
-                    "NFS Client Installed",
-                    f"{message}\n\n" "You can now continue using the application.",
-                )
         else:
             logger.info("NFS Client is installed")
 
@@ -79,16 +56,6 @@ def check_requirements():
             logger.warning("OpenVPN might not be installed")
     except Exception as e:
         logger.error(f"OpenVPN check failed: {str(e)}")
-        QMessageBox.critical(
-            None,
-            "Missing Dependency",
-            "OpenVPN is not installed or not in PATH.\n\n"
-            "Please install OpenVPN:\n"
-            "- Windows: Download from https://openvpn.net\n"
-            "- Linux: sudo apt install openvpn\n"
-            "- macOS: brew install openvpn",
-        )
-        return False
 
     # Проверить paramiko для SSH
     try:
@@ -97,13 +64,6 @@ def check_requirements():
         logger.info("paramiko SSH library found")
     except ImportError:
         logger.error("paramiko SSH library not found")
-        QMessageBox.critical(
-            None,
-            "Missing Dependency",
-            "paramiko SSH library is not installed.\n\n"
-            "Please install it using:\n"
-            "pip install paramiko",
-        )
         return False
 
     logger.info("All requirements met")

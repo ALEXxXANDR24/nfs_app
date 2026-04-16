@@ -31,36 +31,75 @@ class WindowsCommands:
             (success, message)
         """
         try:
-            # Метод 1: Использовать ctypes для выполнения с правами администратора
+            import tempfile
+
             if command[0].lower() == "powershell":
                 # Формируем аргументы PowerShell
                 ps_args = " ".join(command[2:])  # Пропускаем "powershell" и "-Command"
 
-                # Используем ShellExecuteW для выполнения с правами администратора
-                # Параметры: hwnd, operation ("runas"), file, params, dir, show
-                result = ctypes.windll.shell.ShellExecuteW(
-                    None,
-                    "runas",
-                    "powershell.exe",
-                    f'-NoProfile -Command "{ps_args}"',
-                    None,
-                    1,  # SW_SHOW
-                )
+                # Создаем временный батник для выполнения команды
+                batch_content = f"""@echo off
+REM Выполнить PowerShell команду с правами администратора (без видимого окна)
+powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
+"""
 
-                if result > 32:  # Успешное выполнение
-                    time.sleep(2)  # Даем время на выполнение команды
-                    logger.info("Admin command executed successfully")
-                    return True, "Command executed with admin rights"
-                else:
-                    error_msg = f"ShellExecuteW failed with code {result}"
-                    logger.error(error_msg)
-                    return False, error_msg
+                # Создаем временный файл батника
+                fd, batch_file = tempfile.mkstemp(suffix=".bat", text=True)
+                try:
+                    os.write(fd, batch_content.encode("utf-8"))
+                    os.close(fd)
+
+                    logger.debug(f"Created temporary batch file: {batch_file}")
+
+                    # Запускаем батник через PowerShell Start-Process с Verb RunAs
+                    # Это гарантирует появление UAC диалога и ожидание завершения
+                    ps_cmd = (
+                        f'Start-Process -FilePath "{batch_file}" '
+                        "-Verb RunAs -Wait -WindowStyle Hidden"
+                    )
+
+                    result = subprocess.run(
+                        ["powershell", "-Command", ps_cmd],
+                        capture_output=True,
+                        text=True,
+                        timeout=120,
+                        creationflags=CREATE_NO_WINDOW,
+                    )
+
+                    logger.info(f"Admin command execution result: {result.returncode}")
+
+                    if result.returncode == 0:
+                        logger.info("Admin command executed successfully")
+                        return True, "Command executed with admin rights"
+                    else:
+                        # Если returncode != 0, это может быть просто потому, что пользователь отказал в UAC
+                        error_msg = (
+                            result.stderr.strip()
+                            if result.stderr
+                            else "User may have cancelled UAC dialog"
+                        )
+                        logger.warning(f"Admin command result: {error_msg}")
+                        return False, error_msg
+
+                finally:
+                    # Удаляем временный файл
+                    try:
+                        if os.path.exists(batch_file):
+                            time.sleep(0.5)  # Даем время на отпуск файла
+                            os.remove(batch_file)
+                            logger.debug(f"Removed temporary batch file: {batch_file}")
+                    except Exception as e:
+                        logger.warning(f"Could not remove temporary file: {e}")
             else:
                 logger.error(
                     "Only PowerShell commands are supported for admin execution"
                 )
                 return False, "Only PowerShell commands supported"
 
+        except subprocess.TimeoutExpired:
+            error_msg = "Admin command execution timeout"
+            logger.error(error_msg)
+            return False, error_msg
         except Exception as e:
             error_msg = f"Failed to run as admin: {str(e)}"
             logger.error(error_msg)
@@ -218,6 +257,54 @@ class WindowsCommands:
         Returns:
             (success, message)
         """
+        # Проверить и подключить VPN если необходимо
+        logger.info(f"Checking VPN connection before mounting NFS...")
+
+        vpn_connected = False
+        try:
+            # Попытаемся пинганть VPN сервер
+            result = subprocess.run(
+                ["ping", "-n", "1", "-w", "2000", "172.18.130.50"],
+                capture_output=True,
+                timeout=5,
+                creationflags=CREATE_NO_WINDOW,
+            )
+            vpn_connected = result.returncode == 0
+            logger.info(
+                f"VPN connection check: {'Connected' if vpn_connected else 'Not connected'}"
+            )
+        except Exception as e:
+            logger.warning(f"Could not check VPN connection: {str(e)}")
+
+        # Если VPN не подключен, пытаемся подключиться
+        if not vpn_connected:
+            logger.info("VPN is not connected, attempting to connect...")
+            try:
+                # Импортируем VPNManager здесь чтобы избежать циклических импортов
+                from nfs_vpn_app.core.vpn_manager import VPNManager
+
+                vpn_manager = VPNManager()
+                if vpn_manager.connect():
+                    logger.info("VPN connected successfully")
+                    vpn_connected = True
+                    # Даем время на установку соединения
+                    time.sleep(2)
+                else:
+                    logger.error("Failed to connect to VPN")
+                    return (
+                        False,
+                        "Failed to establish VPN connection. Please connect manually and try again.",
+                    )
+            except Exception as e:
+                error_msg = f"VPN connection error: {str(e)}"
+                logger.error(error_msg)
+                return False, error_msg
+
+        if not vpn_connected:
+            msg = "VPN is not connected and connection failed. Please ensure VPN is set up correctly."
+            logger.error(msg)
+            return False, msg
+
         # Проверить доступность сервера перед монтированием
         logger.info(f"Checking server availability: {server}")
         try:

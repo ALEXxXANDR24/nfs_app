@@ -3,6 +3,7 @@
 import subprocess
 import os
 import platform
+import time
 from nfs_vpn_app.core.logger import Logger
 
 logger = Logger(__name__)
@@ -104,6 +105,54 @@ class MacOSCommands:
     @staticmethod
     def mount_nfs(server: str, share: str, mount_point: str) -> tuple:
         """Смонтировать NFS."""
+        # Проверить и подключить VPN если необходимо
+        logger.info(f"Checking VPN connection before mounting NFS...")
+
+        vpn_connected = False
+        try:
+            # Попытаемся пинганть VPN сервер
+            result = subprocess.run(
+                ["ping", "-c", "1", "-W", "2", "172.18.130.50"],
+                capture_output=True,
+                timeout=5,
+                creationflags=CREATE_NO_WINDOW,
+            )
+            vpn_connected = result.returncode == 0
+            logger.info(
+                f"VPN connection check: {'Connected' if vpn_connected else 'Not connected'}"
+            )
+        except Exception as e:
+            logger.warning(f"Could not check VPN connection: {str(e)}")
+
+        # Если VPN не подключен, пытаемся подключиться
+        if not vpn_connected:
+            logger.info("VPN is not connected, attempting to connect...")
+            try:
+                # Импортируем VPNManager здесь чтобы избежать циклических импортов
+                from nfs_vpn_app.core.vpn_manager import VPNManager
+
+                vpn_manager = VPNManager()
+                if vpn_manager.connect():
+                    logger.info("VPN connected successfully")
+                    vpn_connected = True
+                    # Даем время на установку соединения
+                    time.sleep(2)
+                else:
+                    logger.error("Failed to connect to VPN")
+                    return (
+                        False,
+                        "Failed to establish VPN connection. Please connect manually and try again.",
+                    )
+            except Exception as e:
+                error_msg = f"VPN connection error: {str(e)}"
+                logger.error(error_msg)
+                return False, error_msg
+
+        if not vpn_connected:
+            msg = "VPN is not connected and connection failed. Please ensure VPN is set up correctly."
+            logger.error(msg)
+            return False, msg
+
         # Убедиться, что директория существует
         if not os.path.exists(mount_point):
             try:
