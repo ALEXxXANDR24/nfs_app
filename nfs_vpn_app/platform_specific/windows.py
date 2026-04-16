@@ -20,6 +20,53 @@ class WindowsCommands:
     REQUIRED_FEATURES = ["NFS-Client"]
 
     @staticmethod
+    def _run_as_admin(command: list) -> tuple:
+        """
+        Выполнить команду с правами администратора.
+
+        Args:
+            command: Команда в виде списка
+
+        Returns:
+            (success, message)
+        """
+        try:
+            # Метод 1: Использовать ctypes для выполнения с правами администратора
+            if command[0].lower() == "powershell":
+                # Формируем аргументы PowerShell
+                ps_args = " ".join(command[2:])  # Пропускаем "powershell" и "-Command"
+
+                # Используем ShellExecuteW для выполнения с правами администратора
+                # Параметры: hwnd, operation ("runas"), file, params, dir, show
+                result = ctypes.windll.shell.ShellExecuteW(
+                    None,
+                    "runas",
+                    "powershell.exe",
+                    f'-NoProfile -Command "{ps_args}"',
+                    None,
+                    1,  # SW_SHOW
+                )
+
+                if result > 32:  # Успешное выполнение
+                    time.sleep(2)  # Даем время на выполнение команды
+                    logger.info("Admin command executed successfully")
+                    return True, "Command executed with admin rights"
+                else:
+                    error_msg = f"ShellExecuteW failed with code {result}"
+                    logger.error(error_msg)
+                    return False, error_msg
+            else:
+                logger.error(
+                    "Only PowerShell commands are supported for admin execution"
+                )
+                return False, "Only PowerShell commands supported"
+
+        except Exception as e:
+            error_msg = f"Failed to run as admin: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+
+    @staticmethod
     def check_nfs_client_installed() -> bool:
         """Проверить установку NFS Client компонента."""
         try:
@@ -93,24 +140,21 @@ class WindowsCommands:
         logger.info("Attempting to install NFS Client...")
 
         try:
-            # Используем PowerShell для установки с правами администратора
-            # Install-WindowsFeature требует admin, выполняем через powershell
+            # Команда включения компонента NFS
             command = [
                 "powershell",
                 "-Command",
                 "Enable-WindowsOptionalFeature -FeatureName ServicesForNFS-ClientOnly, ClientForNFS-Infrastructure -Online -NoRestart",
             ]
 
-            logger.debug(f"Running install command: {' '.join(command)}")
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=120,
-                creationflags=CREATE_NO_WINDOW,
+            logger.debug(
+                f"Running install command with admin rights: {' '.join(command)}"
             )
 
-            if result.returncode == 0:
+            # Запускаем с правами администратора
+            success, output = WindowsCommands._run_as_admin(command)
+
+            if success:
                 logger.info("NFS Client installed successfully")
                 # Проверяем еще раз
                 if WindowsCommands.check_nfs_client_installed():
@@ -124,11 +168,7 @@ class WindowsCommands:
                         "NFS Client installation completed. Please restart your computer.",
                     )
             else:
-                error_msg = (
-                    result.stderr.strip()
-                    if result.stderr
-                    else result.stdout.strip() if result.stdout else "Unknown error"
-                )
+                error_msg = output.strip() if output else "Unknown error"
                 logger.error(f"Installation failed: {error_msg}")
 
                 # Если недостаточно прав, предлагаем руководство

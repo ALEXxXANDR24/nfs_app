@@ -18,6 +18,7 @@ from nfs_vpn_app.core.logger import Logger
 from nfs_vpn_app.core.ssh_client import SSHClient
 from nfs_vpn_app.core.system_gid_manager import ServerGIDManager, SystemGIDManager
 from nfs_vpn_app.core.vpn_manager import VPNManager
+from nfs_vpn_app.platform_specific.windows import WindowsCommands
 
 logger = Logger(__name__)
 
@@ -26,6 +27,45 @@ def check_requirements():
     """Проверить системные требования."""
     system = platform.system()
     logger.info(f"System: {system}")
+
+    # Проверить NFS Client для Windows
+    if system == "Windows":
+        logger.info("Checking NFS Client for Windows...")
+        if not WindowsCommands.check_nfs_client_installed():
+            logger.warning("NFS Client not found, attempting to install...")
+            QMessageBox.information(
+                None,
+                "NFS Client Required",
+                "NFS Client component is not installed.\n\n"
+                "The application will now attempt to install it.\n"
+                "You may need to provide administrator credentials.",
+            )
+
+            success, message = WindowsCommands.ensure_nfs_client_installed()
+
+            if not success:
+                logger.error(f"NFS Client installation failed: {message}")
+                QMessageBox.critical(
+                    None,
+                    "NFS Client Installation Failed",
+                    f"Could not install NFS Client:\n\n{message}\n\n"
+                    "Please install it manually:\n"
+                    "1. Open Control Panel\n"
+                    "2. Go to Programs > Turn Windows features on or off\n"
+                    "3. Find 'Services for NFS' and 'Client for NFS'\n"
+                    "4. Check both options and click OK\n"
+                    "5. Restart your computer if prompted",
+                )
+                return False
+            else:
+                logger.info(f"NFS Client installation: {message}")
+                QMessageBox.information(
+                    None,
+                    "NFS Client Installed",
+                    f"{message}\n\n" "You can now continue using the application.",
+                )
+        else:
+            logger.info("NFS Client is installed")
 
     # Проверить OpenVPN
     try:
