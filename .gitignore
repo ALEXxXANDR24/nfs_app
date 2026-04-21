@@ -5,4 +5,15 @@ env/
 ENV/
 .venv
 
-*.md
+.env
+.env.local
+.env.*.local
+
+*.log
+logs/
+
+dist/
+build/
+*.exe
+*.app
+*.dmg
