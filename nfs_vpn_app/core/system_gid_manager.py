@@ -157,10 +157,77 @@ class SystemGIDManager:
     def _set_linux_gid(self, gid_number: int) -> Tuple[bool, str]:
         """Установить GID на Linux."""
         try:
-            # На Linux обычно не нужно устанавливать AnonymousGid
-            # так как NFS использует UID/GID напрямую из сервера
-            msg = f"Linux NFS will use GID {gid_number} from server"
-            logger.info(msg)
+            import os
+            import getpass
+
+            current_user = getpass.getuser()
+            logger.info(f"Setting Linux GID {gid_number} for user {current_user}")
+
+            # Проверить текущий GID пользователя
+            current_gid = os.getgid()
+            if current_gid == gid_number:
+                msg = f"User '{current_user}' already has GID {gid_number}"
+                logger.info(msg)
+                return True, msg
+
+            # STEP 1: Создать группу с нужным GID если её нет
+            check_group = subprocess.run(
+                ["getent", "group", str(gid_number)], capture_output=True, timeout=5
+            )
+
+            if check_group.returncode != 0:
+                # Группа не существует, создаем её
+                logger.info(f"Creating group with GID {gid_number}")
+                create_group = subprocess.run(
+                    [
+                        "sudo",
+                        "groupadd",
+                        "-g",
+                        str(gid_number),
+                        f"{current_user}",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+
+                if create_group.returncode != 0:
+                    msg = f"Failed to create group: {create_group.stderr}"
+                    logger.error(msg)
+                    return False, msg
+                logger.info(f"Group created successfully")
+            else:
+                logger.debug(f"Group with GID {gid_number} already exists")
+
+            # STEP 2: Установить основную группу пользователю
+            logger.info(f"Setting GID {gid_number} as primary group for {current_user}")
+
+            # Получить домашний каталог пользователя
+            home_dir = os.path.expanduser("~")
+
+            # Используем флаг -d чтобы не менять владельца домашнего каталога
+            set_gid = subprocess.run(
+                [
+                    "sudo",
+                    "usermod",
+                    "-g",
+                    str(gid_number),
+                    "-d",
+                    home_dir,
+                    current_user,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            if set_gid.returncode != 0:
+                msg = f"Failed to set GID: {set_gid.stderr}"
+                logger.error(msg)
+                return False, msg
+
+            logger.info(f"Linux GID {gid_number} set successfully for {current_user}")
+            msg = f"GID {gid_number} has been set for user '{current_user}'. You may need to log out and log in again for changes to take effect."
             return True, msg
 
         except Exception as e:
@@ -171,9 +238,146 @@ class SystemGIDManager:
     def _set_macos_gid(self, gid_number: int) -> Tuple[bool, str]:
         """Установить GID на macOS."""
         try:
-            # На macOS также обычно не нужно устанавливать AnonymousGid
-            msg = f"macOS NFS will use GID {gid_number} from server"
-            logger.info(msg)
+            import os
+            import getpass
+
+            current_user = getpass.getuser()
+            logger.info(f"Setting macOS GID {gid_number} for user {current_user}")
+
+            # Получить текущий GID
+            current_gid = os.getgid()
+            if current_gid == gid_number:
+                msg = f"User '{current_user}' already has GID {gid_number}"
+                logger.info(msg)
+                return True, msg
+
+            # STEP 1: Проверить существует ли группа с таким GID
+            check_group = subprocess.run(
+                ["dscl", ".", "search", "/Groups", "PrimaryGroupID", str(gid_number)],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+
+            if check_group.returncode != 0:
+                # Группа не существует, создаем её
+                logger.info(f"Creating group with GID {gid_number}")
+
+                create_group_cmds = [
+                    ["sudo", "dscl", ".", "-create", f"/Groups/{current_user}"],
+                    [
+                        "sudo",
+                        "dscl",
+                        ".",
+                        "-create",
+                        f"/Groups/{current_user}",
+                        "PrimaryGroupID",
+                        str(gid_number),
+                    ],
+                    [
+                        "sudo",
+                        "dscl",
+                        ".",
+                        "-create",
+                        f"/Groups/{current_user}",
+                        "RealName",
+                        f"NFS Group {gid_number}",
+                    ],
+                ]
+
+                for cmd in create_group_cmds:
+                    result = subprocess.run(
+                        cmd, capture_output=True, text=True, timeout=30
+                    )
+                    if result.returncode != 0:
+                        logger.debug(
+                            f"Command {' '.join(cmd)} returned {result.returncode}"
+                        )
+
+                logger.info(f"Group creation attempted")
+            else:
+                logger.debug(f"Group with GID {gid_number} already exists")
+
+            # STEP 2: Установить GID пользователю через dscl
+            logger.info(f"Setting GID {gid_number} for {current_user}")
+
+            # Сначала получить текущий GID для использования в -change команде
+            get_current_gid = subprocess.run(
+                ["dscl", ".", "-read", f"/Users/{current_user}", "PrimaryGroupID"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            if get_current_gid.returncode == 0:
+                # PrimaryGroupID существует, используем -change
+                output_lines = get_current_gid.stdout.strip().split("\n")
+                if len(output_lines) > 0:
+                    old_gid = (
+                        output_lines[0].split()[-1]
+                        if output_lines[0].split()
+                        else str(current_gid)
+                    )
+                    logger.debug(f"Current GID for {current_user}: {old_gid}")
+
+                    set_gid = subprocess.run(
+                        [
+                            "sudo",
+                            "dscl",
+                            ".",
+                            "-change",
+                            f"/Users/{current_user}",
+                            "PrimaryGroupID",
+                            old_gid,
+                            str(gid_number),
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+                else:
+                    # Не удалось прочитать GID, используем -create
+                    set_gid = subprocess.run(
+                        [
+                            "sudo",
+                            "dscl",
+                            ".",
+                            "-create",
+                            f"/Users/{current_user}",
+                            "PrimaryGroupID",
+                            str(gid_number),
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+            else:
+                # PrimaryGroupID не существует, используем -create
+                logger.debug(
+                    f"PrimaryGroupID not found for {current_user}, creating new"
+                )
+                set_gid = subprocess.run(
+                    [
+                        "sudo",
+                        "dscl",
+                        ".",
+                        "-create",
+                        f"/Users/{current_user}",
+                        "PrimaryGroupID",
+                        str(gid_number),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+
+            if set_gid.returncode != 0:
+                msg = f"Failed to set GID: {set_gid.stderr}"
+                logger.error(msg)
+                return False, msg
+
+            logger.info(f"macOS GID {gid_number} set successfully for {current_user}")
+            msg = f"GID {gid_number} has been set for user '{current_user}'. You may need to log out and log in again for changes to take effect."
             return True, msg
 
         except Exception as e:

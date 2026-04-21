@@ -190,11 +190,15 @@ class VPNManager:
                 logger.debug("OpenVPN process is not running")
                 return False
 
-            # Пинг к VPN серверу
+            # Пинг к VPN серверу - получить IP из конфигурации
+            vpn_server_ip = self.config_manager.env_vars.get(
+                "NFS_SERVER_HOST", "172.18.130.50"
+            )
+
             if self.platform == "windows":
-                command = ["ping", "-n", "1", "-w", "2000", "172.18.130.50"]
+                command = ["ping", "-n", "1", "-w", "2000", vpn_server_ip]
             else:
-                command = ["ping", "-c", "1", "-W", "2", "172.18.130.50"]
+                command = ["ping", "-c", "1", "-W", "2", vpn_server_ip]
 
             result = subprocess.run(
                 command,

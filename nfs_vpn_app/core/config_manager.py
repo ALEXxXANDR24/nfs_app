@@ -10,19 +10,79 @@ from nfs_vpn_app.core.logger import Logger
 logger = Logger(__name__)
 
 
+def load_env_file(env_path: str = None) -> dict:
+    """
+    Загрузить переменные окружения из .env файла.
+
+    Args:
+        env_path: Путь к .env файлу. Если None, ищет в корне проекта.
+
+    Returns:
+        Словарь переменных окружения
+    """
+    if env_path is None:
+        # Найти корень проекта (где расположен .env)
+        current_dir = Path(__file__).parent
+        while current_dir != current_dir.parent:
+            env_file = current_dir / ".env"
+            if env_file.exists():
+                env_path = str(env_file)
+                break
+            current_dir = current_dir.parent
+
+    env_vars = {}
+
+    if env_path and os.path.exists(env_path):
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    # Пропустить пустые строки и комментарии
+                    if not line or line.startswith("#"):
+                        continue
+
+                    # Парсить переменную
+                    if "=" in line:
+                        key, value = line.split("=", 1)
+                        key = key.strip()
+                        value = value.strip()
+                        # Удалить кавычки если есть
+                        if (value.startswith('"') and value.endswith('"')) or (
+                            value.startswith("'") and value.endswith("'")
+                        ):
+                            value = value[1:-1]
+                        env_vars[key] = value
+                        # Также установить в os.environ
+                        os.environ[key] = value
+
+            logger.debug(
+                f"Loaded {len(env_vars)} environment variables from {env_path}"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to load .env file: {str(e)}")
+
+    return env_vars
+
+
 class ConfigManager:
     """Управление конфигурацией приложения."""
 
-    NFS_SERVER = "172.18.130.50"
-
-    # Платформо-зависимые пути NFS
-    NFS_PATHS = {
-        "windows": "srv\\nfs4\\students",  # Windows формат пути (для аргумента share)
-        "linux": "/",  # Linux формат пути (для аргумента share)
-        "darwin": "/",  # macOS формат пути (для аргумента share)
-    }
-
     def __init__(self):
+        # Загрузить переменные окружения из .env
+        self.env_vars = load_env_file()
+
+        # Получить значения с fallback на hardcoded значения
+        self.NFS_SERVER = self.env_vars.get("NFS_SERVER_HOST", "172.18.130.50")
+        self.NFS_PORT = int(self.env_vars.get("NFS_MOUNT_PORT", 2049))
+        self.SSH_PORT = int(self.env_vars.get("SSH_SERVER_PORT", 5282))
+
+        # Платформо-зависимые пути NFS
+        self.NFS_PATHS = {
+            "windows": self.env_vars.get("NFS_SHARE_WINDOWS", "srv\\nfs4\\students"),
+            "linux": self.env_vars.get("NFS_SHARE_LINUX", "/"),
+            "darwin": self.env_vars.get("NFS_SHARE_MACOS", "/"),
+        }
+
         self.config_dir = self._get_config_dir()
         self.config_file = os.path.join(self.config_dir, "config.json")
         self.vpn_config_file = os.path.join(self.config_dir, "vpn_config.ovpn")

@@ -5,8 +5,10 @@ import os
 import platform
 import time
 from nfs_vpn_app.core.logger import Logger
+from nfs_vpn_app.core.config_manager import ConfigManager
 
 logger = Logger(__name__)
+config_manager = ConfigManager()
 
 # Флаг для скрытия окна консоли (не используется на macOS, но для консистентности)
 if platform.system() == "Windows":
@@ -103,6 +105,88 @@ class MacOSCommands:
             return False, f"Installation error: {error_msg}"
 
     @staticmethod
+    def check_openvpn_installed() -> bool:
+        """Проверить установку OpenVPN."""
+        try:
+            result = subprocess.run(
+                ["which", "openvpn"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                creationflags=CREATE_NO_WINDOW,
+            )
+            is_installed = result.returncode == 0
+            if is_installed:
+                logger.info("OpenVPN is installed")
+            else:
+                logger.warning("OpenVPN is not installed")
+            return is_installed
+        except Exception as e:
+            logger.warning(f"Failed to check OpenVPN: {str(e)}")
+            return False
+
+    @staticmethod
+    def ensure_openvpn_installed() -> tuple:
+        """
+        Проверить и установить OpenVPN если необходимо.
+
+        Returns:
+            (success, message)
+        """
+        # Проверить установлен ли уже
+        if MacOSCommands.check_openvpn_installed():
+            logger.info("OpenVPN is already installed")
+            return True, "OpenVPN is already installed"
+
+        logger.info("Attempting to install OpenVPN via brew...")
+
+        try:
+            # Проверим установлен ли brew
+            result = subprocess.run(
+                ["which", "brew"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                creationflags=CREATE_NO_WINDOW,
+            )
+            if result.returncode != 0:
+                msg = "Homebrew is not installed. Please install Homebrew first from https://brew.sh"
+                logger.error(msg)
+                return False, msg
+
+            # Устанавливаем openvpn через brew
+            command = ["brew", "install", "openvpn"]
+            logger.debug(f"Running command: {' '.join(command)}")
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=120,
+                creationflags=CREATE_NO_WINDOW,
+            )
+
+            if result.returncode == 0:
+                logger.info("OpenVPN installed successfully")
+                return True, "OpenVPN installed successfully"
+            else:
+                error_msg = (
+                    result.stderr.strip()
+                    if result.stderr
+                    else result.stdout.strip() if result.stdout else "Unknown error"
+                )
+                logger.error(f"Installation failed: {error_msg}")
+                return False, f"Installation failed: {error_msg}"
+
+        except subprocess.TimeoutExpired:
+            msg = "Installation timeout"
+            logger.error(msg)
+            return False, msg
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Installation error: {error_msg}")
+            return False, f"Installation error: {error_msg}"
+
+    @staticmethod
     def mount_nfs(server: str, share: str, mount_point: str) -> tuple:
         """Смонтировать NFS."""
         # Проверить и подключить VPN если необходимо
@@ -110,9 +194,12 @@ class MacOSCommands:
 
         vpn_connected = False
         try:
+            # Получить IP сервера из конфигурации
+            server_ip = config_manager.env_vars.get("NFS_SERVER_HOST", "172.18.130.50")
+
             # Попытаемся пинганть VPN сервер
             result = subprocess.run(
-                ["ping", "-c", "1", "-W", "2", "172.18.130.50"],
+                ["ping", "-c", "1", "-W", "2", server_ip],
                 capture_output=True,
                 timeout=5,
                 creationflags=CREATE_NO_WINDOW,

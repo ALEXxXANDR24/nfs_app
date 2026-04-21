@@ -87,6 +87,7 @@ class LoginDialog(QDialog):
         layout.addWidget(password_label)
         self.password_label = QLineEdit()
         self.password_label.setPlaceholderText("password")
+        self.password_label.setEchoMode(QLineEdit.Password)
         layout.addWidget(self.password_label)
 
         # Кнопки

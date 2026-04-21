@@ -6,8 +6,10 @@ import time
 import platform
 import os
 from nfs_vpn_app.core.logger import Logger
+from nfs_vpn_app.core.config_manager import ConfigManager
 
 logger = Logger(__name__)
+config_manager = ConfigManager()
 
 # Флаг для скрытия окна консоли
 CREATE_NO_WINDOW = 0x08000000
@@ -262,9 +264,12 @@ powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
 
         vpn_connected = False
         try:
+            # Получить IP сервера из конфигурации
+            server_ip = config_manager.env_vars.get("NFS_SERVER_HOST", "172.18.130.50")
+
             # Попытаемся пинганть VPN сервер
             result = subprocess.run(
-                ["ping", "-n", "1", "-w", "2000", "172.18.130.50"],
+                ["ping", "-n", "1", "-w", "2000", server_ip],
                 capture_output=True,
                 timeout=5,
                 creationflags=CREATE_NO_WINDOW,

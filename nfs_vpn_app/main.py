@@ -1,24 +1,27 @@
-#!/usr/bin/env python3
-"""Точка входа приложения NFS VPN Connect."""
-
 import sys
 import platform
 import subprocess
 from PyQt5.QtWidgets import QApplication, QMessageBox, QProgressDialog
 from PyQt5.QtCore import Qt
 
-# Флаг для скрытия окна консоли на Windows
-if platform.system() == "Windows":
-    CREATE_NO_WINDOW = 0x08000000
-else:
-    CREATE_NO_WINDOW = 0
 from nfs_vpn_app.ui.main_window import MainWindow
 from nfs_vpn_app.ui.login_dialog import LoginDialog
 from nfs_vpn_app.core.logger import Logger
+from nfs_vpn_app.core.config_manager import ConfigManager, load_env_file
 from nfs_vpn_app.core.ssh_client import SSHClient
 from nfs_vpn_app.core.system_gid_manager import ServerGIDManager, SystemGIDManager
 from nfs_vpn_app.core.vpn_manager import VPNManager
 from nfs_vpn_app.platform_specific.windows import WindowsCommands
+
+if platform.system() == "Linux":
+    from nfs_vpn_app.platform_specific.linux import LinuxCommands
+elif platform.system() == "Darwin":
+    from nfs_vpn_app.platform_specific.macos import MacOSCommands
+
+if platform.system() == "Windows":
+    CREATE_NO_WINDOW = 0x08000000
+else:
+    CREATE_NO_WINDOW = 0
 
 logger = Logger(__name__)
 
@@ -28,7 +31,7 @@ def check_requirements():
     system = platform.system()
     logger.info(f"System: {system}")
 
-    # # Проверить NFS Client для Windows
+    # ============ WINDOWS ============
     if system == "Windows":
         logger.info("Checking NFS Client for Windows...")
         if not WindowsCommands.check_nfs_client_installed():
@@ -44,20 +47,67 @@ def check_requirements():
         else:
             logger.info("NFS Client is installed")
 
-    # Проверить OpenVPN
-    try:
-        result = subprocess.run(
-            ["openvpn", "--version"],
-            capture_output=True,
-            timeout=5,
-            creationflags=CREATE_NO_WINDOW,
-        )
-        if result.returncode != 0:
-            logger.warning("OpenVPN might not be installed")
-    except Exception as e:
-        logger.error(f"OpenVPN check failed: {str(e)}")
+    # ============ LINUX ============
+    elif system == "Linux":
+        logger.info("Checking NFS Common for Linux...")
+        if not LinuxCommands.check_nfs_common_installed():
+            logger.warning("nfs-common not found, attempting to install...")
 
-    # Проверить paramiko для SSH
+            success, message = LinuxCommands.ensure_nfs_common_installed()
+
+            if not success:
+                logger.error(f"nfs-common installation failed: {message}")
+                return False
+            else:
+                logger.info(f"nfs-common installation: {message}")
+        else:
+            logger.info("nfs-common is installed")
+
+        logger.info("Checking OpenVPN for Linux...")
+        if not LinuxCommands.check_openvpn_installed():
+            logger.warning("OpenVPN not found, attempting to install...")
+
+            success, message = LinuxCommands.ensure_openvpn_installed()
+
+            if not success:
+                logger.error(f"OpenVPN installation failed: {message}")
+                return False
+            else:
+                logger.info(f"OpenVPN installation: {message}")
+        else:
+            logger.info("OpenVPN is installed")
+
+    # ============ macOS ============
+    elif system == "Darwin":
+        logger.info("Checking NFS tools for macOS...")
+        if not MacOSCommands.check_nfs_tools_installed():
+            logger.warning("NFS tools not found, attempting to install via Homebrew...")
+
+            success, message = MacOSCommands.ensure_nfs_tools_installed()
+
+            if not success:
+                logger.error(f"NFS tools installation failed: {message}")
+                return False
+            else:
+                logger.info(f"NFS tools installation: {message}")
+        else:
+            logger.info("NFS tools are installed")
+
+        logger.info("Checking OpenVPN for macOS...")
+        if not MacOSCommands.check_openvpn_installed():
+            logger.warning("OpenVPN not found, attempting to install via Homebrew...")
+
+            success, message = MacOSCommands.ensure_openvpn_installed()
+
+            if not success:
+                logger.error(f"OpenVPN installation failed: {message}")
+                return False
+            else:
+                logger.info(f"OpenVPN installation: {message}")
+        else:
+            logger.info("OpenVPN is installed")
+
+    # ============ CHECK PYTHON DEPENDENCIES ============
     try:
         import paramiko
 
@@ -71,31 +121,23 @@ def check_requirements():
 
 
 def main():
-    """Главная функция приложения."""
     try:
         logger.info("Starting NFS VPN Connect application")
 
-        # Проверить требования
         if not check_requirements():
             return 1
 
-        # Создать приложение
         app = QApplication(sys.argv)
 
-        # Установить стиль
         app.setStyle("Fusion")
 
-        # Показать окно авторизации
         login_dialog = LoginDialog()
 
-        # Переменные для хранения данных авторизации
         auth_data = {"email": None, "username": None}
 
         def on_login_attempt(email: str, username: str):
-            """Обработчик попытки логина."""
             logger.info(f"Processing login for: {email}")
 
-            # Создать прогресс диалог
             progress = QProgressDialog("Connecting to VPN...", None, 0, 0, login_dialog)
             progress.setWindowModality(Qt.WindowModal)
             progress.setCancelButton(None)
@@ -106,7 +148,6 @@ def main():
             progress.show()
             app.processEvents()
 
-            # STEP 1: Подключиться к VPN
             vpn_manager = VPNManager()
 
             if not vpn_manager.connect():
@@ -125,16 +166,35 @@ def main():
 
             logger.info("VPN connected successfully during login")
 
-            # STEP 2: Обновить прогресс - подключиться по SSH
             progress.setLabelText("Connecting to server via SSH...")
             app.processEvents()
 
-            # Инициализировать SSH клиент (подключиться к серверу)
+            # Загрузить конфигурацию с переменными окружения
+            config = ConfigManager()
+
+            # Получить SSH учетные данные из переменных окружения
+            ssh_host = config.env_vars.get("SSH_SERVER_HOST", "172.18.130.50")
+            ssh_port = int(config.env_vars.get("SSH_SERVER_PORT", "5282"))
+            ssh_username = config.env_vars.get("SSH_SERVER_USERNAME", "nvt-126")
+            ssh_password = config.env_vars.get("SSH_SERVER_PASSWORD", "")
+
+            if not ssh_password:
+                logger.error("SSH password not configured in environment variables")
+                QMessageBox.critical(
+                    login_dialog,
+                    "Configuration Error",
+                    "SSH credentials not configured.\n\n"
+                    "Please ensure .env file contains SSH_SERVER_PASSWORD.",
+                )
+                progress.close()
+                vpn_manager.disconnect()
+                return
+
             ssh_client = SSHClient(
-                hostname="172.18.130.50",
-                port=5282,
-                username="nvt-126",
-                password="22'@4RqW",
+                hostname=ssh_host,
+                port=ssh_port,
+                username=ssh_username,
+                password=ssh_password,
             )
 
             success, msg = ssh_client.connect()
@@ -155,11 +215,9 @@ def main():
 
             logger.info("SSH connection established")
 
-            # STEP 3: Обновить прогресс - инициализировать GID
             progress.setLabelText("Initializing your account on the server...")
             app.processEvents()
 
-            # Инициализировать GID на сервере
             try:
                 server_gid_manager = ServerGIDManager(ssh_client)
                 gid_success, gid_number, gid_msg = server_gid_manager.setup_user_gid(
@@ -180,7 +238,6 @@ def main():
 
                 logger.info(f"GID setup successful: {gid_msg}")
 
-                # STEP 4: Установить GID в локальной системе
                 progress.setLabelText("Configuring local system...")
                 app.processEvents()
 
@@ -194,17 +251,14 @@ def main():
                 else:
                     logger.info(f"Local GID setup successful: {gid_local_msg}")
 
-                # Сохранить данные авторизации
                 auth_data["email"] = email
                 auth_data["username"] = username
                 auth_data["gid"] = gid_number
-                auth_data["vpn_manager"] = vpn_manager  # Сохранить VPN менеджер
+                auth_data["vpn_manager"] = vpn_manager
 
                 progress.close()
                 ssh_client.disconnect()
-                # Не отключаем VPN - он нужен для NFS!
 
-                # Закрыть диалог логина
                 login_dialog.accept()
 
             except Exception as e:
@@ -219,10 +273,8 @@ def main():
                 vpn_manager.disconnect()
                 return
 
-        # Подключить сигнал логина
         login_dialog.login_success.connect(on_login_attempt)
 
-        # Показать диалог логина
         if login_dialog.exec_() != QMessageBox.Accepted:
             logger.info("User cancelled login")
             return 0
@@ -233,7 +285,6 @@ def main():
 
         logger.info(f"User authorized: {auth_data['email']}")
 
-        # Создать и показать главное окно с данными пользователя
         window = MainWindow(vpn_manager=auth_data.get("vpn_manager"))
         window.current_user = auth_data["username"]
         window.current_email = auth_data["email"]
@@ -242,10 +293,8 @@ def main():
 
         logger.info("Application started successfully")
 
-        # Запустить цикл приложения
         exit_code = app.exec_()
 
-        # Отключиться от VPN при выходе
         vpn_mgr = auth_data.get("vpn_manager")
         if vpn_mgr:
             logger.info("Disconnecting VPN on application exit...")
