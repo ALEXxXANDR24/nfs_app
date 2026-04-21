@@ -1,5 +1,3 @@
-"""Управление VPN подключением."""
-
 import platform
 import subprocess
 import time
@@ -7,7 +5,6 @@ import threading
 import tempfile
 import os
 
-# Флаг для скрытия окна консоли на Windows
 if platform.system() == "Windows":
     CREATE_NO_WINDOW = 0x08000000
 else:
@@ -22,8 +19,6 @@ logger = Logger(__name__)
 
 
 class VPNManager:
-    """Управление VPN подключением."""
-
     def __init__(self):
         self.process = None
         self.is_connected = False
@@ -41,20 +36,17 @@ class VPNManager:
         try:
             logger.info("Starting VPN connection...")
 
-            # Получить VPN конфиг
             vpn_config = self.config_manager.get_vpn_config()
             if not vpn_config:
                 logger.error("Failed to get VPN config")
                 self._emit_status("VPN config not found", "error")
                 return False
 
-            # Валидировать конфиг
             if not Validators.validate_vpn_config(vpn_config):
                 logger.error("VPN config validation failed")
                 self._emit_status("VPN config validation failed", "error")
                 return False
 
-            # Сохранить конфиг во временный файл
             try:
                 temp_file = tempfile.NamedTemporaryFile(
                     mode="w", suffix=".ovpn", delete=False, encoding="utf-8"
@@ -69,9 +61,7 @@ class VPNManager:
                 self._emit_status(f"Failed to save VPN config: {str(e)}", "error")
                 return False
 
-            # Запустить OpenVPN
             if self.platform == "windows":
-                # На Windows запускаем OpenVPN напрямую
                 if not self.openvpn_path:
                     logger.error("OpenVPN not found in system PATH")
                     self._emit_status("OpenVPN not found in system PATH", "error")
@@ -96,15 +86,13 @@ class VPNManager:
             logger.info("OpenVPN process started")
             self._emit_status("Connecting to VPN...", "info")
 
-            # Ждем подключения (проверяем каждую секунду)
-            max_attempts = 60  # Увеличено для Windows (может быть медленнее)
+            max_attempts = 60
             for i in range(max_attempts):
                 if self._check_vpn_connection():
                     self.is_connected = True
                     logger.info("VPN connection established")
                     self._emit_status("VPN connected", "info")
 
-                    # Ждем инициализации адаптера
                     logger.info("Waiting for VPN adapter initialization...")
                     wait_time = 2
                     for i in range(wait_time):
@@ -118,16 +106,14 @@ class VPNManager:
 
                     logger.info("VPN adapter initialization complete")
 
-                    # Запустить мониторинг соединения
                     self._start_monitoring()
 
                     return True
 
                 time.sleep(1)
-                if (i + 1) % 5 == 0:  # Логировать каждые 5 секунд
+                if (i + 1) % 5 == 0:
                     logger.debug(f"Waiting for VPN connection ({i+1}/{max_attempts}s)")
 
-            # Проверим вывод ошибок процесса
             if self.process:
                 try:
                     stderr = self.process.stderr.read() if self.process.stderr else ""
@@ -138,7 +124,7 @@ class VPNManager:
 
             logger.error("VPN connection timeout")
             self._emit_status("VPN connection timeout", "error")
-            self.disconnect()  # Очистить процесс
+            self.disconnect()
             return False
 
         except Exception as e:
@@ -151,15 +137,12 @@ class VPNManager:
         try:
             logger.info("Disconnecting from VPN...")
 
-            # Остановить мониторинг
             self._stop_monitoring()
 
-            # Завершить процесс
             if self.process:
                 self.process_runner.terminate_process(self.process)
                 self.process = None
 
-            # Удалить временный файл конфига
             if self.temp_config_path and os.path.exists(self.temp_config_path):
                 try:
                     os.remove(self.temp_config_path)
@@ -181,16 +164,11 @@ class VPNManager:
     def _check_vpn_connection(self) -> bool:
         """Проверить, подключен ли VPN (пинг к серверу)."""
         try:
-            # Проверяем несколько способов:
-            # 1. Основная проверка - пинг к VPN серверу
-            # 2. Проверка процесса OpenVPN живой
-            # 3. Проверка через netstat/ipconfig на Windows
 
             if self.process and self.process.poll() is not None:
                 logger.debug("OpenVPN process is not running")
                 return False
 
-            # Пинг к VPN серверу - получить IP из конфигурации
             vpn_server_ip = self.config_manager.env_vars.get(
                 "NFS_SERVER_HOST", "172.18.130.50"
             )
@@ -215,9 +193,7 @@ class VPNManager:
                 f"VPN ping failed (code {result.returncode}), checking alternative methods..."
             )
 
-            # Альтернативная проверка - проверим есть ли маршрут на VPN сеть
             if self.platform == "windows":
-                # На Windows используем ipconfig
                 result = subprocess.run(
                     ["ipconfig"],
                     capture_output=True,
@@ -225,7 +201,6 @@ class VPNManager:
                     timeout=5,
                     creationflags=CREATE_NO_WINDOW,
                 )
-                # Ищем VPN адапт или TUN адапт
                 if (
                     "OpenVPN" in result.stdout
                     or "TUN" in result.stdout
@@ -234,7 +209,6 @@ class VPNManager:
                     logger.debug("Found VPN adapter in ipconfig")
                     return True
             else:
-                # На Linux/macOS используем ip route
                 cmd = (
                     "ip route | grep -i tun"
                     if self.platform == "linux"
@@ -292,7 +266,6 @@ class VPNManager:
                 logger.warning("VPN connection lost")
                 self._emit_status("VPN connection lost", "warning")
 
-                # Пытаться переподключиться
                 if reconnect_attempts < max_reconnect_attempts:
                     reconnect_attempts += 1
                     logger.info(
@@ -324,14 +297,12 @@ class VPNManager:
         import shutil
         import glob
 
-        # Пытаемся найти в стандартных местах (сначала обычная инсталляция)
         possible_paths = [
             "C:\\Program Files\\OpenVPN\\bin\\openvpn.exe",
             "C:\\Program Files (x86)\\OpenVPN\\bin\\openvpn.exe",
             "C:\\Users\\Public\\Programs\\OpenVPN\\bin\\openvpn.exe",
         ]
 
-        # Сначала проверим стандартные места
         for path in possible_paths:
             try:
                 if os.path.exists(path):
@@ -340,7 +311,6 @@ class VPNManager:
             except Exception as e:
                 logger.debug(f"Failed to check path {path}: {str(e)}")
 
-        # Попробуем найти через which (если PATH настроена правильно)
         try:
             result = shutil.which("openvpn")
             if result:
@@ -349,7 +319,6 @@ class VPNManager:
         except Exception as e:
             logger.debug(f"shutil.which failed: {str(e)}")
 
-        # Попытаемся поискать в Program Files используя glob
         try:
             programs_dir = os.environ.get("ProgramFiles", "C:\\Program Files")
             pattern = os.path.join(programs_dir, "*OpenVPN*", "bin", "openvpn.exe")
@@ -360,7 +329,6 @@ class VPNManager:
         except Exception as e:
             logger.debug(f"Glob search failed: {str(e)}")
 
-        # Попытаемся поискать в Program Files (x86)
         try:
             programs_dir_x86 = os.environ.get(
                 "ProgramFiles(x86)", "C:\\Program Files (x86)"
@@ -373,7 +341,6 @@ class VPNManager:
         except Exception as e:
             logger.debug(f"Glob search (x86) failed: {str(e)}")
 
-        # Попробуем запустить openvpn напрямую из PATH
         try:
             result = subprocess.run(
                 ["openvpn", "--version"],

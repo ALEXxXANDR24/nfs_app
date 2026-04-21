@@ -1,5 +1,3 @@
-"""Команды для Windows."""
-
 import subprocess
 import ctypes
 import time
@@ -11,14 +9,12 @@ from nfs_vpn_app.core.config_manager import ConfigManager
 logger = Logger(__name__)
 config_manager = ConfigManager()
 
-# Флаг для скрытия окна консоли
 CREATE_NO_WINDOW = 0x08000000
 
 
 class WindowsCommands:
     """Команды для Windows."""
 
-    # Требуемые компоненты
     REQUIRED_FEATURES = ["NFS-Client"]
 
     @staticmethod
@@ -36,16 +32,13 @@ class WindowsCommands:
             import tempfile
 
             if command[0].lower() == "powershell":
-                # Формируем аргументы PowerShell
-                ps_args = " ".join(command[2:])  # Пропускаем "powershell" и "-Command"
+                ps_args = " ".join(command[2:])
 
-                # Создаем временный батник для выполнения команды
                 batch_content = f"""@echo off
 REM Выполнить PowerShell команду с правами администратора (без видимого окна)
 powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
 """
 
-                # Создаем временный файл батника
                 fd, batch_file = tempfile.mkstemp(suffix=".bat", text=True)
                 try:
                     os.write(fd, batch_content.encode("utf-8"))
@@ -53,8 +46,6 @@ powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
 
                     logger.debug(f"Created temporary batch file: {batch_file}")
 
-                    # Запускаем батник через PowerShell Start-Process с Verb RunAs
-                    # Это гарантирует появление UAC диалога и ожидание завершения
                     ps_cmd = (
                         f'Start-Process -FilePath "{batch_file}" '
                         "-Verb RunAs -Wait -WindowStyle Hidden"
@@ -74,7 +65,6 @@ powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
                         logger.info("Admin command executed successfully")
                         return True, "Command executed with admin rights"
                     else:
-                        # Если returncode != 0, это может быть просто потому, что пользователь отказал в UAC
                         error_msg = (
                             result.stderr.strip()
                             if result.stderr
@@ -84,10 +74,9 @@ powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
                         return False, error_msg
 
                 finally:
-                    # Удаляем временный файл
                     try:
                         if os.path.exists(batch_file):
-                            time.sleep(0.5)  # Даем время на отпуск файла
+                            time.sleep(0.5)
                             os.remove(batch_file)
                             logger.debug(f"Removed temporary batch file: {batch_file}")
                     except Exception as e:
@@ -111,7 +100,6 @@ powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
     def check_nfs_client_installed() -> bool:
         """Проверить установку NFS Client компонента."""
         try:
-            # Метод 1: Проверить наличие mount.exe в System32
             import os
 
             mount_path = os.path.join(
@@ -122,7 +110,6 @@ powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
                 logger.info("NFS Client is installed (mount.exe found in System32)")
                 return True
 
-            # Метод 2: Попробуем запустить mount.exe с явным путем
             try:
                 result = subprocess.run(
                     [mount_path, "-h"],
@@ -137,7 +124,6 @@ powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
             except:
                 pass
 
-            # Метод 3: Проверим через PowerShell с точным парсингом
             try:
                 result = subprocess.run(
                     [
@@ -173,7 +159,6 @@ powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
         Returns:
             (success, message)
         """
-        # Проверить установлен ли уже
         if WindowsCommands.check_nfs_client_installed():
             logger.info("NFS Client is already installed")
             return True, "NFS Client is already installed"
@@ -181,7 +166,6 @@ powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
         logger.info("Attempting to install NFS Client...")
 
         try:
-            # Команда включения компонента NFS
             command = [
                 "powershell",
                 "-Command",
@@ -192,12 +176,10 @@ powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
                 f"Running install command with admin rights: {' '.join(command)}"
             )
 
-            # Запускаем с правами администратора
             success, output = WindowsCommands._run_as_admin(command)
 
             if success:
                 logger.info("NFS Client installed successfully")
-                # Проверяем еще раз
                 if WindowsCommands.check_nfs_client_installed():
                     return (
                         True,
@@ -212,7 +194,6 @@ powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
                 error_msg = output.strip() if output else "Unknown error"
                 logger.error(f"Installation failed: {error_msg}")
 
-                # Если недостаточно прав, предлагаем руководство
                 if "Access Denied" in error_msg or "denied" in error_msg.lower():
                     msg = (
                         "NFS Client installation requires administrator privileges.\n"
@@ -236,11 +217,11 @@ powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
         """Получить доступные буквы диска."""
         drives = []
         try:
-            for letter in range(ord("D"), ord("Z") + 1):  # D-Z
+            for letter in range(ord("D"), ord("Z") + 1):
                 drive = chr(letter)
                 try:
                     drive_type = ctypes.windll.kernel32.GetDriveTypeW(f"{drive}:\\")
-                    if drive_type == 1:  # DRIVE_NO_ROOT_DIR - свободный диск
+                    if drive_type == 1:
                         drives.append(drive)
                         logger.debug(f"Drive {drive} is available")
                 except:
@@ -259,15 +240,12 @@ powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
         Returns:
             (success, message)
         """
-        # Проверить и подключить VPN если необходимо
         logger.info(f"Checking VPN connection before mounting NFS...")
 
         vpn_connected = False
         try:
-            # Получить IP сервера из конфигурации
             server_ip = config_manager.env_vars.get("NFS_SERVER_HOST", "172.18.130.50")
 
-            # Попытаемся пинганть VPN сервер
             result = subprocess.run(
                 ["ping", "-n", "1", "-w", "2000", server_ip],
                 capture_output=True,
@@ -281,18 +259,15 @@ powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
         except Exception as e:
             logger.warning(f"Could not check VPN connection: {str(e)}")
 
-        # Если VPN не подключен, пытаемся подключиться
         if not vpn_connected:
             logger.info("VPN is not connected, attempting to connect...")
             try:
-                # Импортируем VPNManager здесь чтобы избежать циклических импортов
                 from nfs_vpn_app.core.vpn_manager import VPNManager
 
                 vpn_manager = VPNManager()
                 if vpn_manager.connect():
                     logger.info("VPN connected successfully")
                     vpn_connected = True
-                    # Даем время на установку соединения
                     time.sleep(2)
                 else:
                     logger.error("Failed to connect to VPN")
@@ -310,7 +285,6 @@ powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
             logger.error(msg)
             return False, msg
 
-        # Проверить доступность сервера перед монтированием
         logger.info(f"Checking server availability: {server}")
         try:
             result = subprocess.run(
@@ -327,11 +301,9 @@ powershell -NoProfile -WindowStyle Hidden -Command "{ps_args}"
         except Exception as e:
             logger.warning(f"Could not verify server availability: {str(e)}")
 
-        # Проверить синтаксис пути
         nfs_path = f"\\\\{server}\\{share}"
         logger.debug(f"NFS path syntax: {nfs_path}")
 
-        # Монтируем через mount.exe
         command = [
             "mount.exe",
             "-o",

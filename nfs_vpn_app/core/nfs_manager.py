@@ -1,5 +1,3 @@
-"""Управление NFS монтированием."""
-
 import platform
 import subprocess
 import os
@@ -14,25 +12,20 @@ logger = Logger(__name__)
 
 
 class NFSManager:
-    """Управление NFS монтированием."""
-
     def __init__(self):
         self.mount_point = None
         self.is_mounted = False
         self.platform = platform.system().lower()
         self.config_manager = ConfigManager()
 
-        # NFS сервер и путь
         self.nfs_server = self.config_manager.get_nfs_server()
         self.nfs_path = self.config_manager.get_nfs_path()
 
-        # Сигнал для UI
         self.on_status_changed: Optional[Callable] = None
 
-        # Мониторинг
         self.monitor_thread = None
         self.monitoring = False
-        self.check_interval = 10  # секунд
+        self.check_interval = 10
 
     def mount(self, mount_point: str) -> bool:
         """
@@ -45,13 +38,11 @@ class NFSManager:
             True если успешно, иначе False
         """
         try:
-            # Валидировать точку монтирования
             if not Validators.validate_mount_point(mount_point, self.platform):
                 logger.error(f"Invalid mount point: {mount_point}")
                 self._emit_status(f"Invalid mount point: {mount_point}", "error")
                 return False
 
-            # Проверить доступность точки монтирования
             if not Validators.is_path_available(mount_point):
                 logger.error(f"Mount point not available: {mount_point}")
                 self._emit_status(f"Mount point not available: {mount_point}", "error")
@@ -61,12 +52,11 @@ class NFSManager:
             logger.info(f"Attempting to mount NFS to {mount_point}")
             self._emit_status(f"Mounting NFS to {mount_point}...", "info")
 
-            # Выполнить монтирование в зависимости от ОС
             if self.platform == "windows":
                 success, message = self._mount_windows()
             elif self.platform == "darwin":
                 success, message = self._mount_macos()
-            else:  # Linux
+            else:
                 success, message = self._mount_linux()
 
             if success:
@@ -74,7 +64,6 @@ class NFSManager:
                 logger.info(f"NFS mounted successfully")
                 self._emit_status(f"NFS mounted successfully: {message}", "info")
 
-                # Запустить мониторинг
                 self._start_monitoring()
 
                 return True
@@ -103,15 +92,13 @@ class NFSManager:
             logger.info(f"Attempting to unmount NFS from {self.mount_point}")
             self._emit_status(f"Unmounting NFS from {self.mount_point}...", "info")
 
-            # Остановить мониторинг
             self._stop_monitoring()
 
-            # Выполнить размонтирование в зависимости от ОС
             if self.platform == "windows":
                 success, message = self._unmount_windows()
             elif self.platform == "darwin":
                 success, message = self._unmount_macos()
-            else:  # Linux
+            else:
                 success, message = self._unmount_linux()
 
             if success:
@@ -125,7 +112,6 @@ class NFSManager:
                 self._emit_status(
                     f"Unmount completed with warnings: {message}", "warning"
                 )
-                # Все равно считаем размонтированным
                 self.is_mounted = False
                 self.mount_point = None
                 return True
@@ -140,7 +126,6 @@ class NFSManager:
         from nfs_vpn_app.platform_specific.windows import WindowsCommands
 
         try:
-            # Проверить и установить NFS Client если необходимо
             if not WindowsCommands.check_nfs_client_installed():
                 logger.info("NFS Client not installed, attempting to install...")
                 self._emit_status("Installing NFS Client component...", "info")
@@ -153,18 +138,15 @@ class NFSManager:
                 logger.info(f"NFS Client installation result: {message}")
                 self._emit_status(f"NFS Client: {message}", "info")
 
-                # Если требуется перезагрузка
                 if "restart" in message.lower() or "reboot" in message.lower():
                     return False, f"{message} Please restart and try again."
 
-            # Выполнить монтирование
             success, message = WindowsCommands.mount_nfs(
                 self.nfs_server, self.nfs_path, self.mount_point
             )
 
-            # Проверить монтирование
             if success:
-                time.sleep(1)  # Дать время на завершение операции
+                time.sleep(1)
                 if WindowsCommands.check_mount(self.mount_point):
                     return True, f"Mounted on {self.mount_point}:"
                 else:
@@ -181,7 +163,6 @@ class NFSManager:
         from nfs_vpn_app.platform_specific.linux import LinuxCommands
 
         try:
-            # Проверить и установить NFS Common если необходимо
             if not LinuxCommands.check_nfs_common_installed():
                 logger.info("nfs-common not installed, attempting to install...")
                 self._emit_status("Installing nfs-common package...", "info")
@@ -194,12 +175,10 @@ class NFSManager:
                 logger.info(f"nfs-common installation result: {message}")
                 self._emit_status(f"nfs-common: {message}", "info")
 
-            # Выполнить монтирование
             success, message = LinuxCommands.mount_nfs(
                 self.nfs_server, self.nfs_path, self.mount_point
             )
 
-            # Проверить монтирование
             if success:
                 time.sleep(1)
                 if LinuxCommands.check_mount(self.mount_point):
@@ -218,7 +197,6 @@ class NFSManager:
         from nfs_vpn_app.platform_specific.macos import MacOSCommands
 
         try:
-            # Проверить и установить NFS tools если необходимо
             if not MacOSCommands.check_nfs_tools_installed():
                 logger.info("NFS tools not installed, attempting to install...")
                 self._emit_status("Installing NFS tools via Homebrew...", "info")
@@ -231,12 +209,10 @@ class NFSManager:
                 logger.info(f"NFS tools installation result: {message}")
                 self._emit_status(f"NFS tools: {message}", "info")
 
-            # Выполнить монтирование
             success, message = MacOSCommands.mount_nfs(
                 self.nfs_server, self.nfs_path, self.mount_point
             )
 
-            # Проверить монтирование
             if success:
                 time.sleep(1)
                 if MacOSCommands.check_mount(self.mount_point):
@@ -259,7 +235,6 @@ class NFSManager:
 
             if success:
                 time.sleep(1)
-                # Проверить что действительно размонтирован
                 if not WindowsCommands.check_mount(self.mount_point):
                     return True, "Unmounted successfully"
                 else:
@@ -280,7 +255,6 @@ class NFSManager:
 
             if success:
                 time.sleep(1)
-                # Проверить что действительно размонтирован
                 if not LinuxCommands.check_mount(self.mount_point):
                     return True, "Unmounted successfully"
                 else:
@@ -301,7 +275,6 @@ class NFSManager:
 
             if success:
                 time.sleep(1)
-                # Проверить что действительно размонтирован
                 if not MacOSCommands.check_mount(self.mount_point):
                     return True, "Unmounted successfully"
                 else:
@@ -338,7 +311,6 @@ class NFSManager:
             if not self.is_mounted:
                 break
 
-            # Проверить доступность
             if not self._check_nfs_accessible():
                 logger.warning("NFS mount point is not accessible")
                 self._emit_status("NFS mount point is not accessible", "warning")

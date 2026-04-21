@@ -18,20 +18,13 @@ if platform.system() == "Linux":
 elif platform.system() == "Darwin":
     from nfs_vpn_app.platform_specific.macos import MacOSCommands
 
-if platform.system() == "Windows":
-    CREATE_NO_WINDOW = 0x08000000
-else:
-    CREATE_NO_WINDOW = 0
-
 logger = Logger(__name__)
 
 
 def check_requirements():
-    """Проверить системные требования."""
     system = platform.system()
     logger.info(f"System: {system}")
 
-    # ============ WINDOWS ============
     if system == "Windows":
         logger.info("Checking NFS Client for Windows...")
         if not WindowsCommands.check_nfs_client_installed():
@@ -47,7 +40,6 @@ def check_requirements():
         else:
             logger.info("NFS Client is installed")
 
-    # ============ LINUX ============
     elif system == "Linux":
         logger.info("Checking NFS Common for Linux...")
         if not LinuxCommands.check_nfs_common_installed():
@@ -77,7 +69,6 @@ def check_requirements():
         else:
             logger.info("OpenVPN is installed")
 
-    # ============ macOS ============
     elif system == "Darwin":
         logger.info("Checking NFS tools for macOS...")
         if not MacOSCommands.check_nfs_tools_installed():
@@ -107,7 +98,6 @@ def check_requirements():
         else:
             logger.info("OpenVPN is installed")
 
-    # ============ CHECK PYTHON DEPENDENCIES ============
     try:
         import paramiko
 
@@ -169,26 +159,12 @@ def main():
             progress.setLabelText("Connecting to server via SSH...")
             app.processEvents()
 
-            # Загрузить конфигурацию с переменными окружения
             config = ConfigManager()
 
-            # Получить SSH учетные данные из переменных окружения
             ssh_host = config.env_vars.get("SSH_SERVER_HOST", "172.18.130.50")
             ssh_port = int(config.env_vars.get("SSH_SERVER_PORT", "5282"))
             ssh_username = config.env_vars.get("SSH_SERVER_USERNAME", "nvt-126")
             ssh_password = config.env_vars.get("SSH_SERVER_PASSWORD", "")
-
-            if not ssh_password:
-                logger.error("SSH password not configured in environment variables")
-                QMessageBox.critical(
-                    login_dialog,
-                    "Configuration Error",
-                    "SSH credentials not configured.\n\n"
-                    "Please ensure .env file contains SSH_SERVER_PASSWORD.",
-                )
-                progress.close()
-                vpn_manager.disconnect()
-                return
 
             ssh_client = SSHClient(
                 hostname=ssh_host,

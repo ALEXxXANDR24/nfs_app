@@ -1,5 +1,3 @@
-"""Команды для Linux."""
-
 import subprocess
 import os
 import platform
@@ -10,7 +8,6 @@ from nfs_vpn_app.core.config_manager import ConfigManager
 logger = Logger(__name__)
 config_manager = ConfigManager()
 
-# Флаг для скрытия окна консоли (не используется на Linux, но для консистентности)
 if platform.system() == "Windows":
     CREATE_NO_WINDOW = 0x08000000
 else:
@@ -20,7 +17,6 @@ else:
 class LinuxCommands:
     """Команды для Linux."""
 
-    # Требуемые пакеты
     REQUIRED_PACKAGES = ["nfs-common", "openvpn"]
 
     @staticmethod
@@ -52,7 +48,6 @@ class LinuxCommands:
         Returns:
             (success, message)
         """
-        # Проверить установлен ли уже
         if LinuxCommands.check_nfs_common_installed():
             logger.info("nfs-common is already installed")
             return True, "nfs-common is already installed"
@@ -60,7 +55,6 @@ class LinuxCommands:
         logger.info("Attempting to install nfs-common...")
 
         try:
-            # Обновляем репозитории и устанавливаем nfs-common
             commands = [
                 ["sudo", "apt", "update"],
                 ["sudo", "apt", "install", "-y", "nfs-common"],
@@ -126,7 +120,6 @@ class LinuxCommands:
         Returns:
             (success, message)
         """
-        # Проверить установлен ли уже
         if LinuxCommands.check_openvpn_installed():
             logger.info("OpenVPN is already installed")
             return True, "OpenVPN is already installed"
@@ -134,7 +127,6 @@ class LinuxCommands:
         logger.info("Attempting to install OpenVPN...")
 
         try:
-            # Обновляем репозитории и устанавливаем openvpn
             commands = [
                 ["sudo", "apt", "update"],
                 ["sudo", "apt", "install", "-y", "openvpn"],
@@ -174,15 +166,12 @@ class LinuxCommands:
     @staticmethod
     def mount_nfs(server: str, share: str, mount_point: str) -> tuple:
         """Смонтировать NFS."""
-        # Проверить и подключить VPN если необходимо
         logger.info(f"Checking VPN connection before mounting NFS...")
 
         vpn_connected = False
         try:
-            # Получить IP сервера из конфигурации
             server_ip = config_manager.env_vars.get("NFS_SERVER_HOST", "172.18.130.50")
 
-            # Попытаемся пинганть VPN сервер
             result = subprocess.run(
                 ["ping", "-c", "1", "-W", "2", server_ip],
                 capture_output=True,
@@ -196,18 +185,15 @@ class LinuxCommands:
         except Exception as e:
             logger.warning(f"Could not check VPN connection: {str(e)}")
 
-        # Если VPN не подключен, пытаемся подключиться
         if not vpn_connected:
             logger.info("VPN is not connected, attempting to connect...")
             try:
-                # Импортируем VPNManager здесь чтобы избежать циклических импортов
                 from nfs_vpn_app.core.vpn_manager import VPNManager
 
                 vpn_manager = VPNManager()
                 if vpn_manager.connect():
                     logger.info("VPN connected successfully")
                     vpn_connected = True
-                    # Даем время на установку соединения
                     time.sleep(2)
                 else:
                     logger.error("Failed to connect to VPN")
@@ -225,7 +211,6 @@ class LinuxCommands:
             logger.error(msg)
             return False, msg
 
-        # Убедиться, что директория существует
         if not os.path.exists(mount_point):
             try:
                 result = subprocess.run(

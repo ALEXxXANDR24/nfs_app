@@ -1,5 +1,3 @@
-"""Команды для macOS."""
-
 import subprocess
 import os
 import platform
@@ -10,7 +8,6 @@ from nfs_vpn_app.core.config_manager import ConfigManager
 logger = Logger(__name__)
 config_manager = ConfigManager()
 
-# Флаг для скрытия окна консоли (не используется на macOS, но для консистентности)
 if platform.system() == "Windows":
     CREATE_NO_WINDOW = 0x08000000
 else:
@@ -24,8 +21,6 @@ class MacOSCommands:
     def check_nfs_tools_installed() -> bool:
         """Проверить установку NFS tools."""
         try:
-            # macOS включает встроенную поддержку NFS через mount_nfs
-            # Проверим наличие команды mount_nfs
             result = subprocess.run(
                 ["which", "mount_nfs"],
                 capture_output=True,
@@ -51,7 +46,6 @@ class MacOSCommands:
         Returns:
             (success, message)
         """
-        # Проверить установлены ли уже
         if MacOSCommands.check_nfs_tools_installed():
             logger.info("NFS tools are already installed")
             return True, "NFS tools are already installed"
@@ -59,7 +53,6 @@ class MacOSCommands:
         logger.info("Attempting to install NFS tools via brew...")
 
         try:
-            # Проверим установлен ли brew
             result = subprocess.run(
                 ["which", "brew"],
                 capture_output=True,
@@ -72,7 +65,6 @@ class MacOSCommands:
                 logger.error(msg)
                 return False, msg
 
-            # Устанавливаем nfs-utils через brew
             command = ["brew", "install", "nfs-utils"]
             logger.debug(f"Running command: {' '.join(command)}")
             result = subprocess.run(
@@ -133,7 +125,6 @@ class MacOSCommands:
         Returns:
             (success, message)
         """
-        # Проверить установлен ли уже
         if MacOSCommands.check_openvpn_installed():
             logger.info("OpenVPN is already installed")
             return True, "OpenVPN is already installed"
@@ -141,7 +132,6 @@ class MacOSCommands:
         logger.info("Attempting to install OpenVPN via brew...")
 
         try:
-            # Проверим установлен ли brew
             result = subprocess.run(
                 ["which", "brew"],
                 capture_output=True,
@@ -154,7 +144,6 @@ class MacOSCommands:
                 logger.error(msg)
                 return False, msg
 
-            # Устанавливаем openvpn через brew
             command = ["brew", "install", "openvpn"]
             logger.debug(f"Running command: {' '.join(command)}")
             result = subprocess.run(
@@ -189,15 +178,12 @@ class MacOSCommands:
     @staticmethod
     def mount_nfs(server: str, share: str, mount_point: str) -> tuple:
         """Смонтировать NFS."""
-        # Проверить и подключить VPN если необходимо
         logger.info(f"Checking VPN connection before mounting NFS...")
 
         vpn_connected = False
         try:
-            # Получить IP сервера из конфигурации
             server_ip = config_manager.env_vars.get("NFS_SERVER_HOST", "172.18.130.50")
 
-            # Попытаемся пинганть VPN сервер
             result = subprocess.run(
                 ["ping", "-c", "1", "-W", "2", server_ip],
                 capture_output=True,
@@ -211,18 +197,15 @@ class MacOSCommands:
         except Exception as e:
             logger.warning(f"Could not check VPN connection: {str(e)}")
 
-        # Если VPN не подключен, пытаемся подключиться
         if not vpn_connected:
             logger.info("VPN is not connected, attempting to connect...")
             try:
-                # Импортируем VPNManager здесь чтобы избежать циклических импортов
                 from nfs_vpn_app.core.vpn_manager import VPNManager
 
                 vpn_manager = VPNManager()
                 if vpn_manager.connect():
                     logger.info("VPN connected successfully")
                     vpn_connected = True
-                    # Даем время на установку соединения
                     time.sleep(2)
                 else:
                     logger.error("Failed to connect to VPN")
@@ -240,7 +223,6 @@ class MacOSCommands:
             logger.error(msg)
             return False, msg
 
-        # Убедиться, что директория существует
         if not os.path.exists(mount_point):
             try:
                 result = subprocess.run(

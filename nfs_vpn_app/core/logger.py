@@ -1,5 +1,3 @@
-"""Logger и определение платформы."""
-
 import logging
 import sys
 import platform as platform_module
@@ -27,14 +25,11 @@ class Logger:
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging.DEBUG)
 
-        # Удалить существующие обработчики
         self.logger.handlers = []
 
-        # Console handler
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.DEBUG)
 
-        # Setup file handler
         log_dir = os.path.expanduser("~/.nfs_vpn_app")
         os.makedirs(log_dir, exist_ok=True)
 
@@ -45,7 +40,6 @@ class Logger:
         except:
             file_handler = None
 
-        # Formatter
         formatter = logging.Formatter(
             "[%(asctime)s] %(levelname)s - %(name)s - %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
@@ -75,5 +69,4 @@ class Logger:
         self.logger.warning(msg)
 
 
-# Глобальный логгер
 logger = Logger(__name__)

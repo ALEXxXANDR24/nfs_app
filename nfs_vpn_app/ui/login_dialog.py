@@ -1,5 +1,3 @@
-"""Окно авторизации приложения."""
-
 from PyQt5.QtWidgets import (
     QDialog,
     QVBoxLayout,
@@ -21,8 +19,7 @@ logger = Logger(__name__)
 class LoginDialog(QDialog):
     """Окно авторизации для доступа в приложение."""
 
-    # Сигнал с информацией о пользователе (email, username)
-    login_success = pyqtSignal(str, str)  # email, username
+    login_success = pyqtSignal(str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -67,7 +64,6 @@ class LoginDialog(QDialog):
         """Подготовить UI."""
         layout = QVBoxLayout()
 
-        # Заголовок
         title = QLabel("HSE Authorization")
         title_font = QFont()
         title_font.setPointSize(14)
@@ -76,7 +72,6 @@ class LoginDialog(QDialog):
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
-        # Email
         email_label = QLabel("Email:")
         layout.addWidget(email_label)
         self.email_input = QLineEdit()
@@ -90,7 +85,6 @@ class LoginDialog(QDialog):
         self.password_label.setEchoMode(QLineEdit.Password)
         layout.addWidget(self.password_label)
 
-        # Кнопки
         button_layout = QHBoxLayout()
 
         login_btn = QPushButton("Login")
@@ -105,37 +99,30 @@ class LoginDialog(QDialog):
         layout.addLayout(button_layout)
         self.setLayout(layout)
 
-        # Фокус на email поле
         self.email_input.setFocus()
 
-        # Enter для логина
         self.email_input.returnPressed.connect(self._on_login_clicked)
 
     def _on_login_clicked(self):
         """Обработчик нажатия кнопки Login."""
         email = self.email_input.text().strip()
 
-        # Валидация email
         if not email:
             self._show_error("Please enter your email address")
             return
 
-        # Проверка формата
         if not self._validate_email(email):
             self._show_error("Invalid email format.\nPlease use: name@edu.hse.ru")
             return
 
-        # Извлечь username (часть до @)
         username = email.split("@")[0]
 
         logger.info(f"Login attempt with email: {email}, username: {username}")
 
-        # Сигнал успешной попытки логина
         self.login_success.emit(email, username)
 
     def _validate_email(self, email: str) -> bool:
         """Проверить email на валидность."""
-        # Проверка формата: должно быть XXX@edu.hse.ru
         pattern = r"^[a-zA-Z0-9._-]+@edu\.hse\.ru$"
         return re.match(pattern, email) is not None
 

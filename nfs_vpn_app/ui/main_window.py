@@ -1,5 +1,3 @@
-"""Главное окно приложения с темным стилем."""
-
 from PyQt5.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -38,7 +36,6 @@ class MainWindow(QMainWindow):
         self.init_ui()
         self.setup_signals()
 
-        # Таймер для обновления статуса
         self.status_timer = QTimer()
         self.status_timer.timeout.connect(self.update_status)
 
@@ -49,7 +46,6 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("NFS Connect - Network File System Manager")
         self.setGeometry(100, 100, 1000, 400)
 
-        # Темный стиль
         self.setStyleSheet(
             """
             QMainWindow {
@@ -143,7 +139,6 @@ class MainWindow(QMainWindow):
         """
         )
 
-        # Главный виджет
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
@@ -152,7 +147,6 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(20, 20, 20, 20)
         central_widget.setLayout(main_layout)
 
-        # Заголовок
         header_layout = QHBoxLayout()
         title_label = QLabel("NFS Connection Manager")
         title_font = title_label.font()
@@ -164,14 +158,11 @@ class MainWindow(QMainWindow):
         header_layout.addStretch()
         main_layout.addLayout(header_layout)
 
-        # Главный контейнер с двух-колончным макетом
         content_layout = QHBoxLayout()
 
-        # Левая колонна (управление)
         left_column = QVBoxLayout()
         left_column.setSpacing(12)
 
-        # Группа выбора точки монтирования
         mount_group = QGroupBox("Mount Configuration")
         mount_layout = QFormLayout()
         mount_layout.setSpacing(8)
@@ -193,7 +184,6 @@ class MainWindow(QMainWindow):
         mount_group.setLayout(mount_layout)
         left_column.addWidget(mount_group)
 
-        # Кнопки управления
         button_group = QGroupBox("Connection Control")
         button_layout = QHBoxLayout()
         button_layout.setSpacing(10)
@@ -256,18 +246,15 @@ class MainWindow(QMainWindow):
         button_group.setLayout(button_layout)
         left_column.addWidget(button_group)
 
-        # Прогресс бар
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         self.progress_bar.setMinimumHeight(14)
         left_column.addWidget(self.progress_bar)
 
-        # Статус-карточки
         status_group = QGroupBox("Connection Status")
         status_layout = QHBoxLayout()
         status_layout.setSpacing(15)
 
-        # NFS Статус
         nfs_card_layout = QVBoxLayout()
         nfs_label = QLabel("NFS Status")
         nfs_label.setStyleSheet("font-weight: 600; color: #4db8ff; font-size: 12pt;")
@@ -279,7 +266,6 @@ class MainWindow(QMainWindow):
         nfs_card_layout.addWidget(self.nfs_status_label)
         status_layout.addLayout(nfs_card_layout)
 
-        # Общий статус
         general_card_layout = QVBoxLayout()
         general_label = QLabel("Overall Status")
         general_label.setStyleSheet(
@@ -300,13 +286,11 @@ class MainWindow(QMainWindow):
         left_column.addStretch()
         content_layout.addLayout(left_column, 2)
 
-        # Разделитель
         separator = QWidget()
         separator.setStyleSheet("background-color: #404040;")
         separator.setMaximumWidth(2)
         content_layout.addWidget(separator)
 
-        # Правая колонна (логи)
         right_column = QVBoxLayout()
         right_column.setSpacing(8)
 
@@ -327,7 +311,6 @@ class MainWindow(QMainWindow):
 
         main_layout.addLayout(content_layout, 1)
 
-        # Обновить старый reference на новый статус-лейбл
         self.status_label = self.general_status_label
 
     def _populate_mount_points(self):
@@ -345,7 +328,6 @@ class MainWindow(QMainWindow):
                 self.mount_point_selector.addItem("Z", "Z")
                 logger.warning("No available drives found, using Z as default")
         else:
-            # Для Linux/macOS - предложить стандартные пути
             import os
 
             default_paths = [
@@ -372,13 +354,11 @@ class MainWindow(QMainWindow):
         if not mount_point:
             mount_point = self.mount_point_selector.currentText()
 
-        # Отключить кнопки
         self.connect_button.setEnabled(False)
         self.disconnect_button.setEnabled(False)
 
-        # Показать прогресс
         self.progress_bar.setVisible(True)
-        self.progress_bar.setMaximum(0)  # Indefinite progress
+        self.progress_bar.setMaximum(0)
 
         self.log("VPN is already connected (from login)")
         self.general_status_label.setText("Mounting NFS...")
@@ -386,7 +366,6 @@ class MainWindow(QMainWindow):
             "color: #FFB74D; font-size: 14pt; font-weight: bold;"
         )
 
-        # Монтирование NFS
         self.log(f"Mounting NFS to {mount_point}...")
 
         if not self.nfs_manager.mount(mount_point):
@@ -419,7 +398,6 @@ class MainWindow(QMainWindow):
             )
             msg.exec_()
 
-            # Отключиться от VPN если монтирование не удалось
             self.log("Disconnecting VPN due to mount failure...")
             self.vpn_manager.disconnect()
 
@@ -438,16 +416,13 @@ class MainWindow(QMainWindow):
             "color: #4CAF50; font-size: 14pt; font-weight: bold;"
         )
 
-        # Обновить кнопки
         self.connect_button.setEnabled(False)
         self.disconnect_button.setEnabled(True)
         self.progress_bar.setVisible(False)
 
-        # Сохранить выбранную точку монтирования
         self.nfs_manager.config_manager.save_last_mount_point(mount_point)
 
-        # Запустить таймер обновления статуса
-        self.status_timer.start(5000)  # Проверять каждые 5 секунд
+        self.status_timer.start(5000)
 
         self.log("=" * 60)
         self.log(f"Successfully connected!")
@@ -468,14 +443,12 @@ class MainWindow(QMainWindow):
             "color: #FFB74D; font-size: 14pt; font-weight: bold;"
         )
 
-        # Размонтировать NFS
         self.log("Unmounting NFS...")
         if not self.nfs_manager.unmount():
             self.log("Warning: Could not unmount NFS properly")
         else:
             self.log("NFS unmounted")
 
-        # Отключиться от VPN
         self.log("Disconnecting VPN...")
         if not self.vpn_manager.disconnect():
             self.log("Warning: Could not disconnect VPN properly")
@@ -491,7 +464,6 @@ class MainWindow(QMainWindow):
             "color: #FF6B6B; font-size: 14pt; font-weight: bold;"
         )
 
-        # Обновить кнопки
         self.connect_button.setEnabled(True)
         self.disconnect_button.setEnabled(False)
 
@@ -528,7 +500,6 @@ class MainWindow(QMainWindow):
         self.log_display.appendPlainText(colored_message)
         logger.info(message)
 
-        # Автопрокрутка
         self.log_display.verticalScrollBar().setValue(
             self.log_display.verticalScrollBar().maximum()
         )

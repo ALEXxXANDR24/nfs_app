@@ -1,5 +1,3 @@
-"""Управление конфигурацией приложения."""
-
 import os
 import sys
 import json
@@ -21,7 +19,6 @@ def load_env_file(env_path: str = None) -> dict:
         Словарь переменных окружения
     """
     if env_path is None:
-        # Найти корень проекта (где расположен .env)
         current_dir = Path(__file__).parent
         while current_dir != current_dir.parent:
             env_file = current_dir / ".env"
@@ -37,22 +34,18 @@ def load_env_file(env_path: str = None) -> dict:
             with open(env_path, "r", encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
-                    # Пропустить пустые строки и комментарии
                     if not line or line.startswith("#"):
                         continue
 
-                    # Парсить переменную
                     if "=" in line:
                         key, value = line.split("=", 1)
                         key = key.strip()
                         value = value.strip()
-                        # Удалить кавычки если есть
                         if (value.startswith('"') and value.endswith('"')) or (
                             value.startswith("'") and value.endswith("'")
                         ):
                             value = value[1:-1]
                         env_vars[key] = value
-                        # Также установить в os.environ
                         os.environ[key] = value
 
             logger.debug(
@@ -68,15 +61,12 @@ class ConfigManager:
     """Управление конфигурацией приложения."""
 
     def __init__(self):
-        # Загрузить переменные окружения из .env
         self.env_vars = load_env_file()
 
-        # Получить значения с fallback на hardcoded значения
         self.NFS_SERVER = self.env_vars.get("NFS_SERVER_HOST", "172.18.130.50")
         self.NFS_PORT = int(self.env_vars.get("NFS_MOUNT_PORT", 2049))
         self.SSH_PORT = int(self.env_vars.get("SSH_SERVER_PORT", 5282))
 
-        # Платформо-зависимые пути NFS
         self.NFS_PATHS = {
             "windows": self.env_vars.get("NFS_SHARE_WINDOWS", "srv\\nfs4\\students"),
             "linux": self.env_vars.get("NFS_SHARE_LINUX", "/"),
@@ -87,7 +77,6 @@ class ConfigManager:
         self.config_file = os.path.join(self.config_dir, "config.json")
         self.vpn_config_file = os.path.join(self.config_dir, "vpn_config.ovpn")
 
-        # Создать директорию конфига если её нет
         os.makedirs(self.config_dir, exist_ok=True)
 
         self.config = self._load_config()
@@ -97,9 +86,9 @@ class ConfigManager:
         """Получить директорию конфигурации зависимо от ОС."""
         if platform.system() == "Windows":
             return os.path.join(os.environ.get("APPDATA", ""), "nfs_vpn_app")
-        elif platform.system() == "Darwin":  # macOS
+        elif platform.system() == "Darwin":
             return os.path.expanduser("~/.config/nfs_vpn_app")
-        else:  # Linux
+        else:
             return os.path.expanduser("~/.config/nfs_vpn_app")
 
     def _load_config(self) -> dict:
@@ -113,7 +102,6 @@ class ConfigManager:
             except Exception as e:
                 logger.error(f"Failed to load config: {str(e)}")
 
-        # Дефолтная конфигурация - использовать платформо-зависимый путь
         os_name = platform.system().lower()
         nfs_path = self.NFS_PATHS.get(os_name, self.NFS_PATHS["linux"])
 
@@ -152,10 +140,6 @@ class ConfigManager:
     def get_vpn_config(self) -> str:
         """Получить встроенный VPN конфиг из приложения."""
         try:
-            # Определить директорию для поиска ресурсов
-            # Когда запущено из .exe, __file__ указывает на временную папку PyInstaller
-
-            # Способ 1: Относительно текущего файла (основной путь)
             base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             vpn_config_path = os.path.join(base_dir, "resources", "vpn_config.ovpn")
 
@@ -166,7 +150,6 @@ class ConfigManager:
                 logger.info("VPN config loaded from resources")
                 return config_content
 
-            # Способ 2: Может быть в корне (если PyInstaller bundled неправильно)
             logger.debug(f"Trying alternative paths for VPN config...")
             alternative_paths = [
                 os.path.join(base_dir, "resources", "vpn_config.ovpn"),
@@ -182,7 +165,6 @@ class ConfigManager:
                         config_content = f.read()
                     return config_content
 
-            # Способ 3: Поискать в sys.path [для .exe]
             for path in sys.path:
                 vpn_path = os.path.join(path, "resources", "vpn_config.ovpn")
                 vpn_path = os.path.abspath(vpn_path)
@@ -193,7 +175,6 @@ class ConfigManager:
                         config_content = f.read()
                     return config_content
 
-            # Если ничего не найдено, выведем информацию для отладки
             logger.error(f"VPN config not found")
             logger.error(f"Base dir: {base_dir}")
             logger.error(f"sys.path: {sys.path}")

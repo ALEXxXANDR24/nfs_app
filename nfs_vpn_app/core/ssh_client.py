@@ -1,5 +1,3 @@
-"""SSH клиент для работы с удаленным сервером."""
-
 import paramiko
 import socket
 import threading
@@ -10,8 +8,6 @@ logger = Logger(__name__)
 
 
 class SSHClient:
-    """Клиент для SSH подключения к серверу."""
-
     def __init__(self, hostname: str, port: int, username: str, password: str):
         """
         Инициализировать SSH клиент.
@@ -103,13 +99,11 @@ class SSHClient:
         try:
             logger.debug(f"Executing command: {command}")
 
-            # Если нужен пароль для sudo, добавляем флаг -S
             if use_sudo_password and command.strip().startswith("sudo "):
                 command = command.replace("sudo ", "sudo -S ", 1)
 
             stdin, stdout, stderr = self.ssh.exec_command(command)
 
-            # Передать пароль если нужен sudo
             if use_sudo_password:
                 stdin.write(self.password + "\n")
                 stdin.flush()
@@ -143,7 +137,6 @@ class SSHClient:
         if not success or not out:
             return False, None
 
-        # Формат: groupname:x:gid:members
         parts = out.strip().split(":")
         if len(parts) >= 3:
             try:
@@ -166,7 +159,6 @@ class SSHClient:
         Returns:
             (успех, сообщение)
         """
-        # Проверить что GID еще не существует
         exists, _ = self.check_gid_exists(gid_name)
         if exists:
             msg = f"GID '{gid_name}' already exists"
@@ -202,12 +194,10 @@ class SSHClient:
         Returns:
             (успех, сообщение)
         """
-        # Проверить существует ли директория
         if self.check_directory_exists(path):
             logger.info(f"Directory '{path}' already exists")
             return True, f"Directory '{path}' already exists"
 
-        # Создать директорию
         success, out, err = self.execute_command(
             f"sudo mkdir -p {path}", use_sudo_password=True
         )
@@ -216,7 +206,6 @@ class SSHClient:
             logger.error(msg)
             return False, msg
 
-        # Установить owner и группу
         success, out, err = self.execute_command(
             f"sudo chown :{gid_name} {path}", use_sudo_password=True
         )
@@ -225,7 +214,6 @@ class SSHClient:
             logger.error(msg)
             return False, msg
 
-        # rwx для группы, r-- для остальных
         success, out, err = self.execute_command(
             f"sudo chmod 774 {path}", use_sudo_password=True
         )

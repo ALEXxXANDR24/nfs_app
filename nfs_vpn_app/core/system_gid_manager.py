@@ -1,5 +1,3 @@
-"""Менеджер для системной конфигурации GID."""
-
 import platform
 import subprocess
 from typing import Tuple
@@ -26,7 +24,6 @@ class SystemGIDManager:
             (успех, сообщение)
         """
         if self.platform == "Windows":
-            # На Windows проверяем текущий GID
             current_gid = self._get_current_windows_gid()
             if current_gid == gid_number:
                 msg = f"Windows AnonymousGid is already set to {gid_number}, no changes needed"
@@ -35,7 +32,7 @@ class SystemGIDManager:
             return self._set_windows_gid(gid_number)
         elif self.platform == "Linux":
             return self._set_linux_gid(gid_number)
-        elif self.platform == "Darwin":  # macOS
+        elif self.platform == "Darwin":
             return self._set_macos_gid(gid_number)
         else:
             msg = f"Unsupported platform: {self.platform}"
@@ -82,18 +79,15 @@ class SystemGIDManager:
         try:
             logger.info(f"Setting Windows AnonymousGid to {gid_number}")
 
-            # Используем запуск от администратора через ProcessRunner
             from nfs_vpn_app.utils.process_runner import ProcessRunner
 
             process_runner = ProcessRunner()
 
-            # PowerShell команда для изменения реестра
             ps_command = (
                 f"Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\ClientForNFS\\CurrentVersion\\Default' "
                 f"-Name 'AnonymousGid' -Value {gid_number} -Type DWord"
             )
 
-            # Запускаем PowerShell от администратора
             command = ["powershell", "-Command", ps_command]
 
             process = process_runner.start_long_running_process(
@@ -105,19 +99,16 @@ class SystemGIDManager:
                 logger.error(msg)
                 return False, msg
 
-            # Ждем завершения процесса
             process.wait()
 
             if process.returncode == 0:
                 logger.info(f"Windows registry updated successfully")
 
-                # STEP 2: Показать диалог с просьбой перезагрузить компьютер
                 logger.info("Requesting system reboot to apply NFS GID changes...")
 
                 try:
                     from PyQt5.QtWidgets import QMessageBox, QApplication
 
-                    # Получить активное окно приложения (если оно есть)
                     app = QApplication.instance()
 
                     if app:
@@ -163,20 +154,17 @@ class SystemGIDManager:
             current_user = getpass.getuser()
             logger.info(f"Setting Linux GID {gid_number} for user {current_user}")
 
-            # Проверить текущий GID пользователя
             current_gid = os.getgid()
             if current_gid == gid_number:
                 msg = f"User '{current_user}' already has GID {gid_number}"
                 logger.info(msg)
                 return True, msg
 
-            # STEP 1: Создать группу с нужным GID если её нет
             check_group = subprocess.run(
                 ["getent", "group", str(gid_number)], capture_output=True, timeout=5
             )
 
             if check_group.returncode != 0:
-                # Группа не существует, создаем её
                 logger.info(f"Creating group with GID {gid_number}")
                 create_group = subprocess.run(
                     [
@@ -199,13 +187,10 @@ class SystemGIDManager:
             else:
                 logger.debug(f"Group with GID {gid_number} already exists")
 
-            # STEP 2: Установить основную группу пользователю
             logger.info(f"Setting GID {gid_number} as primary group for {current_user}")
 
-            # Получить домашний каталог пользователя
             home_dir = os.path.expanduser("~")
 
-            # Используем флаг -d чтобы не менять владельца домашнего каталога
             set_gid = subprocess.run(
                 [
                     "sudo",
@@ -244,14 +229,12 @@ class SystemGIDManager:
             current_user = getpass.getuser()
             logger.info(f"Setting macOS GID {gid_number} for user {current_user}")
 
-            # Получить текущий GID
             current_gid = os.getgid()
             if current_gid == gid_number:
                 msg = f"User '{current_user}' already has GID {gid_number}"
                 logger.info(msg)
                 return True, msg
 
-            # STEP 1: Проверить существует ли группа с таким GID
             check_group = subprocess.run(
                 ["dscl", ".", "search", "/Groups", "PrimaryGroupID", str(gid_number)],
                 capture_output=True,
@@ -260,7 +243,6 @@ class SystemGIDManager:
             )
 
             if check_group.returncode != 0:
-                # Группа не существует, создаем её
                 logger.info(f"Creating group with GID {gid_number}")
 
                 create_group_cmds = [
@@ -298,10 +280,8 @@ class SystemGIDManager:
             else:
                 logger.debug(f"Group with GID {gid_number} already exists")
 
-            # STEP 2: Установить GID пользователю через dscl
             logger.info(f"Setting GID {gid_number} for {current_user}")
 
-            # Сначала получить текущий GID для использования в -change команде
             get_current_gid = subprocess.run(
                 ["dscl", ".", "-read", f"/Users/{current_user}", "PrimaryGroupID"],
                 capture_output=True,
@@ -310,7 +290,6 @@ class SystemGIDManager:
             )
 
             if get_current_gid.returncode == 0:
-                # PrimaryGroupID существует, используем -change
                 output_lines = get_current_gid.stdout.strip().split("\n")
                 if len(output_lines) > 0:
                     old_gid = (
@@ -336,7 +315,6 @@ class SystemGIDManager:
                         timeout=30,
                     )
                 else:
-                    # Не удалось прочитать GID, используем -create
                     set_gid = subprocess.run(
                         [
                             "sudo",
@@ -352,7 +330,6 @@ class SystemGIDManager:
                         timeout=30,
                     )
             else:
-                # PrimaryGroupID не существует, используем -create
                 logger.debug(
                     f"PrimaryGroupID not found for {current_user}, creating new"
                 )
@@ -387,9 +364,6 @@ class SystemGIDManager:
 
 
 class ServerGIDManager:
-    """Менеджер для управления GID на сервере."""
-
-    # Начальное значение GID для новых пользователей
     STARTING_GID = 2001
     BASE_PATH = "/srv/nfs4/students"
 
@@ -436,21 +410,18 @@ class ServerGIDManager:
         """
         logger.info(f"Setting up GID for user: {username}")
 
-        # Проверить существует ли GID
         exists, gid_number = self.ssh.check_gid_exists(username)
 
         if exists:
             logger.info(f"GID for '{username}' already exists: {gid_number}")
             gid_to_use = gid_number
         else:
-            # Создать новый GID
             gid_to_use = self.get_next_available_gid()
             success, msg = self.ssh.create_gid(username, gid_to_use)
             if not success:
                 return False, 0, msg
             self.used_gids.add(gid_to_use)
 
-        # Проверить/создать директорию
         user_path = f"{self.BASE_PATH}/{username}"
         success, msg = self.ssh.create_directory(user_path, username)
 

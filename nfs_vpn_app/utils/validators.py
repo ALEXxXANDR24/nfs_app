@@ -1,5 +1,3 @@
-"""Валидация входных данных."""
-
 import re
 import os
 import platform
@@ -9,8 +7,6 @@ logger = Logger(__name__)
 
 
 class Validators:
-    """Валидация различных параметров."""
-
     @staticmethod
     def validate_mount_point_windows(drive_letter: str) -> bool:
         """Валидировать букву диска (A-Z)."""
@@ -32,12 +28,10 @@ class Validators:
             logger.warning(f"Path too short: {path}")
             return False
 
-        # Проверить, что путь абсолютный
         if not path.startswith("/"):
             logger.warning(f"Path {path} is not absolute")
             return False
 
-        # Проверить валидность символов
         if re.match(r"^/[\w\-/.]*$", path):
             logger.debug(f"Path {path} is valid")
             return True
@@ -61,13 +55,11 @@ class Validators:
         """Проверить, что путь доступен для использования."""
         try:
             if platform.system() == "Windows":
-                # Для Windows проверить наличие буквы диска
                 import ctypes
 
                 drive = f"{path}:\\"
                 return bool(ctypes.windll.kernel32.GetDriveTypeW(drive))
             else:
-                # Для Linux/macOS проверить, что директория существует или может быть создана
                 parent_dir = os.path.dirname(path)
                 if not parent_dir:
                     parent_dir = "/"
@@ -83,7 +75,6 @@ class Validators:
             logger.warning("VPN config is empty")
             return False
 
-        # Требуем только 'client' - это главный признак OpenVPN конфига
         if "client" not in config_content.lower():
             logger.warning(
                 "Missing key 'client' in VPN config - not a valid OpenVPN config"
